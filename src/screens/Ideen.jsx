@@ -23,8 +23,6 @@ export default function Ideen() {
     { id: 2, text: 'Lemon Tart perfektionieren', category: 'genuss', date: new Date().toISOString().slice(0,10), done: false },
   ])
   const [input, setInput] = useState('')
-  const [category, setCategory] = useState('inspiration')
-  const [filter, setFilter] = useState('alle')
   const [coachMsg] = useState(
     ideaCoachMessages[Math.floor(Math.random() * ideaCoachMessages.length)]
   )
@@ -34,7 +32,7 @@ export default function Ideen() {
     setIdeas(prev => [{
       id: Date.now(),
       text: input.trim(),
-      category,
+      category: 'inspiration',
       date: new Date().toISOString().slice(0, 10),
       done: false,
     }, ...prev])
@@ -80,53 +78,16 @@ export default function Ideen() {
             }}
           >+</button>
         </div>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {CATEGORIES.filter(c => c.id !== 'alle').map(c => (
-            <button
-              key={c.id}
-              onClick={() => setCategory(c.id)}
-              style={{
-                padding: '4px 10px', borderRadius: '100px',
-                border: `1.5px solid ${category === c.id ? 'var(--green)' : 'var(--border)'}`,
-                background: category === c.id ? 'var(--green-pale)' : 'transparent',
-                color: category === c.id ? 'var(--green)' : 'var(--text-muted)',
-                fontSize: '0.75rem', fontWeight: 500,
-              }}
-            >
-              {c.icon} {c.label}
-            </button>
-          ))}
-        </div>
       </div>
 
-      {/* Filter-Leiste */}
-      <div style={{ display: 'flex', gap: 6, overflowX: 'auto', marginBottom: 16, paddingBottom: 4, scrollbarWidth: 'none' }}>
-        {CATEGORIES.map(c => (
-          <button
-            key={c.id}
-            onClick={() => setFilter(c.id)}
-            style={{
-              padding: '6px 14px', borderRadius: '100px',
-              background: filter === c.id ? 'var(--green)' : 'var(--bg-card)',
-              color: filter === c.id ? 'white' : 'var(--text-muted)',
-              fontSize: '0.8rem', fontWeight: 500,
-              whiteSpace: 'nowrap', boxShadow: 'var(--shadow)',
-              border: 'none', transition: 'all 0.15s', flexShrink: 0,
-            }}
-          >
-            {c.icon} {c.label}
-          </button>
-        ))}
-      </div>
-
-      {filtered.length === 0 ? (
+      {ideas.length === 0 ? (
         <div className="empty-state">
           <div className="empty-state-icon">✦</div>
           <p>Noch keine Ideen —<br />trag ein, was dich bewegt.</p>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {filtered.map(idea => (
+          {ideas.map(idea => (
             <IdeaCard
               key={idea.id}
               idea={idea}
