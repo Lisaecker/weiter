@@ -1,7 +1,6 @@
 import { useState, useRef } from 'react'
-import Coach from '../components/Coach.jsx'
+import Coach from '../coach/Coach.jsx'
 import { useLocalStorage } from '../hooks/useLocalStorage.js'
-import { energyMessages } from '../data/coachMessages.js'
 import { CATEGORIES } from './Ideen.jsx'
 
 // Welche Ideen-Kategorien passen zu welchem Energielevel
@@ -65,9 +64,30 @@ function getBerlinDate() {
   return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Berlin' }).format(new Date())
 }
 
-function getCoachMessage(level) {
-  const msgs = energyMessages[level]
-  return msgs[Math.floor(Math.random() * msgs.length)]
+const ENERGY_FALLBACK = {
+  1: 'Erschöpft zu sein ist kein Versagen — es ist ein Signal. Was brauchst du gerade wirklich?',
+  2: 'Wenig Energie heute. Was wäre ein einziger Schritt, der sich noch machbar anfühlt?',
+  3: 'Ein solider Tag. Was ist das Eine, das heute wirklich zählt?',
+  4: 'Gute Energie — nutze sie für das, was du sonst vor dir herschiebst.',
+  5: 'Du bist heute richtig dabei. Was wagst du anzugehen, das du schon länger aufgeschoben hast?',
+}
+
+function buildDayCoachMessage(level, levelLabel, tasks) {
+  const taskStr = tasks.length > 0
+    ? `Meine Aufgaben heute: ${tasks.map(t => t.label).join(', ')}.`
+    : 'Ich habe noch keine Aufgaben geplant.'
+  return `Mein Energielevel heute morgen: ${level}/5 (${levelLabel}). ${taskStr} Was sagst du dazu — worauf soll ich mich heute fokussieren?`
+}
+
+function buildEveningCoachMessage(level, levelLabel, tasks) {
+  const done = tasks.filter(t => t.done).length
+  const taskStr = tasks.length > 0
+    ? `Geplant hatte ich: ${tasks.map(t => t.label).join(', ')}. Davon erledigt: ${done}/${tasks.length}.`
+    : 'Ich hatte heute keine Aufgaben geplant.'
+  const energyStr = level
+    ? `Mein Energielevel heute war ${level}/5 (${levelLabel}).`
+    : 'Heute kein Energie-Check.'
+  return `Es ist Abend. ${energyStr} ${taskStr} Stimme mich auf den Tagesrückblick ein.`
 }
 
 export default function MeinTag() {
@@ -79,10 +99,14 @@ export default function MeinTag() {
   const [taskLog, setTaskLog] = useLocalStorage('taskLog', {})
   const [eveningLog, setEveningLog] = useLocalStorage('eveningLog', {})
   const [ideas] = useLocalStorage('ideas', [])
-  const [coachMsg] = useState(() =>
-    energyLog[today]?.level ? getCoachMessage(energyLog[today].level) : null
-  )
-  const [pendingCoach, setPendingCoach] = useState(null)
+
+  const [coachUserMessage, setCoachUserMessage] = useState(() => {
+    const lvl = energyLog[today]?.level
+    if (!lvl) return null
+    const levelObj = ENERGY_LEVELS.find(e => e.value === lvl)
+    return buildDayCoachMessage(lvl, levelObj?.label, taskLog[today] || [])
+  })
+
   const [ideaMsg, setIdeaMsg] = useState(() => {
     const lvl = energyLog[today]?.level
     if (!lvl) return null
@@ -98,7 +122,6 @@ export default function MeinTag() {
   const todayEvening = eveningLog[today] || { energiequellen: '', haenger: '', morgen: '', saved: false }
   const doneCount = todayTasks.filter(t => t.done).length
   const allDone = todayTasks.length > 0 && doneCount === todayTasks.length
-  const activeCoach = pendingCoach || coachMsg
 
   const handleEnergy = (level) => {
     if (currentLevel) return // einmal gesetzt, bleibt es
@@ -110,7 +133,8 @@ export default function MeinTag() {
       ...prev,
       [today]: { level, timestamp: now.toISOString(), berlinTime }
     }))
-    setPendingCoach(getCoachMessage(level))
+    const levelObj = ENERGY_LEVELS.find(e => e.value === level)
+    setCoachUserMessage(buildDayCoachMessage(level, levelObj?.label, taskLog[today] || []))
     setIdeaMsg(pickIdeaForContext(ideas, level, taskLog[today] || []))
   }
 
@@ -179,7 +203,8 @@ export default function MeinTag() {
           </div>
 
           <Coach
-            message={todayEvening.saved
+            userMessage={buildEveningCoachMessage(currentLevel, levelObj?.label, todayTasks)}
+            fallback={todayEvening.saved
               ? "Schön, dass du heute reflektiert hast. Was du aufschreibst, bleibt — und macht dich morgen klarer."
               : "Der Abend ist die beste Zeit zum Reflektieren. Nimm dir 3 Minuten — sie zahlen sich morgen aus."}
             icon="🌙"
@@ -332,7 +357,11 @@ export default function MeinTag() {
               )}
 
               {/* Coach */}
-              {activeCoach && <Coach message={activeCoach} icon="✦" />}
+              <Coach
+                userMessage={coachUserMessage}
+                fallback={ENERGY_FALLBACK[currentLevel]}
+                icon="✦"
+              />
 
               {/* Aufgaben-Karte */}
               <div className="card slide-up">
