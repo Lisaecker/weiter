@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react'
 import Coach from '../coach/Coach.jsx'
+import { askCoach } from '../coach/CoachService.js'
 import { useLocalStorage } from '../hooks/useLocalStorage.js'
 import { CATEGORIES } from './Ideen.jsx'
 
@@ -99,6 +100,7 @@ export default function MeinTag() {
   const [taskLog, setTaskLog] = useLocalStorage('taskLog', {})
   const [eveningLog, setEveningLog] = useLocalStorage('eveningLog', {})
   const [ideas] = useLocalStorage('ideas', [])
+  const [reflectionCoachLoading, setReflectionCoachLoading] = useState(false)
 
   const [coachUserMessage, setCoachUserMessage] = useState(() => {
     const lvl = energyLog[today]?.level
@@ -170,11 +172,26 @@ export default function MeinTag() {
     }))
   }
 
-  const saveEvening = () => {
-    setEveningLog(prev => ({
-      ...prev,
-      [today]: { ...todayEvening, saved: true, timestamp: new Date().toISOString() }
-    }))
+  const saveEvening = async () => {
+    const saved = { ...todayEvening, saved: true, timestamp: new Date().toISOString() }
+    setEveningLog(prev => ({ ...prev, [today]: saved }))
+
+    if (import.meta.env.VITE_ANTHROPIC_API_KEY && !todayEvening.coachMessage) {
+      setReflectionCoachLoading(true)
+      const parts = []
+      if (saved.energiequellen) parts.push(`Was mir heute Energie gegeben hat: ${saved.energiequellen}.`)
+      if (saved.haenger) parts.push(`Mein Hänger heute: ${saved.haenger}.`)
+      if (saved.morgen) parts.push(`Was ich morgen anders machen möchte: ${saved.morgen}.`)
+      const msg = `Ich habe meinen Tag reflektiert. ${parts.join(' ')} Gib mir eine abschließende Nachricht für heute Abend — kurz, persönlich, ermutigend ohne übertrieben zu sein.`
+      try {
+        const coachMsg = await askCoach(msg)
+        setEveningLog(prev => ({
+          ...prev,
+          [today]: { ...prev[today], coachMessage: coachMsg }
+        }))
+      } catch { /* silent fallback */ }
+      setReflectionCoachLoading(false)
+    }
   }
 
   const suggestions = currentLevel
@@ -278,17 +295,74 @@ export default function MeinTag() {
             />
           </div>
 
-          <button
-            className="btn-primary"
-            onClick={saveEvening}
-            style={{
-              background: todayEvening.saved ? 'var(--green-light)' : 'var(--green)',
-              marginBottom: 16,
-              transition: 'background 0.3s',
-            }}
-          >
-            {todayEvening.saved ? '✓ Gespeichert — gute Nacht 🌙' : 'Tagesrückblick speichern'}
-          </button>
+          {!todayEvening.saved && (
+            <button
+              className="btn-primary"
+              onClick={saveEvening}
+              style={{ marginBottom: 16 }}
+            >
+              Tagesrückblick speichern
+            </button>
+          )}
+
+          {/* ── Abschlusskarte nach dem Speichern ── */}
+          {todayEvening.saved && (
+            <div className="card fade-in" style={{ border: '1px solid var(--green)', marginBottom: 16 }}>
+
+              {/* Coach-Abschlussnachricht */}
+              {(reflectionCoachLoading || todayEvening.coachMessage) && (
+                <div style={{
+                  background: 'linear-gradient(135deg, #2D6A4F 0%, #1B4332 100%)',
+                  borderRadius: 'var(--radius-sm)',
+                  padding: '14px 16px',
+                  marginBottom: 16,
+                }}>
+                  <div style={{
+                    fontSize: '0.65rem', fontWeight: 600, letterSpacing: '0.1em',
+                    textTransform: 'uppercase', color: 'rgba(255,255,255,0.6)', marginBottom: 6,
+                  }}>
+                    Coach · Abschluss
+                  </div>
+                  {reflectionCoachLoading ? (
+                    <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+                      {[0, 1, 2].map(i => (
+                        <div key={i} style={{
+                          width: 6, height: 6, borderRadius: '50%',
+                          background: 'rgba(255,255,255,0.5)',
+                          animation: 'coachBounce 1.2s ease infinite',
+                          animationDelay: `${i * 0.2}s`,
+                        }} />
+                      ))}
+                    </div>
+                  ) : (
+                    <p style={{ color: 'white', fontSize: '0.875rem', lineHeight: 1.6, margin: 0 }}>
+                      {todayEvening.coachMessage}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Reflexions-Zusammenfassung */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <span className="label" style={{ marginBottom: 0 }}>Deine Reflexion</span>
+                <span style={{ fontSize: '0.7rem', color: 'var(--text-light)' }}>
+                  {new Date(todayEvening.timestamp).toLocaleTimeString('de-DE', {
+                    hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Berlin',
+                  })} Uhr
+                </span>
+              </div>
+
+              {todayEvening.energiequellen && (
+                <ReflectionSummary emoji="🌅" label="Energie gegeben" text={todayEvening.energiequellen} />
+              )}
+              {todayEvening.haenger && (
+                <ReflectionSummary emoji="😶‍🌫️" label="Hänger" text={todayEvening.haenger} />
+              )}
+              {todayEvening.morgen && (
+                <ReflectionSummary emoji="🌱" label="Morgen anders" text={todayEvening.morgen} />
+              )}
+            </div>
+          )}
         </>
       ) : (
 
@@ -486,6 +560,24 @@ export default function MeinTag() {
           )}
         </>
       )}
+    </div>
+  )
+}
+
+function ReflectionSummary({ emoji, label, text }) {
+  return (
+    <div style={{ marginBottom: 10 }}>
+      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: 3 }}>
+        {emoji} {label}
+      </div>
+      <p style={{
+        fontSize: '0.875rem', color: 'var(--text)', lineHeight: 1.5,
+        padding: '8px 12px', background: 'var(--bg)',
+        borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)',
+        margin: 0,
+      }}>
+        {text}
+      </p>
     </div>
   )
 }
