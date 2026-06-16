@@ -255,17 +255,12 @@ export default function MeinTag() {
                   </strong>
                 </div>
                 {todayTasks.map(t => (
-                  <div key={t.id} style={{
-                    display: 'flex', alignItems: 'center', gap: 8,
-                    fontSize: '0.85rem', padding: '3px 0',
-                    color: t.done ? 'var(--text-muted)' : 'var(--text)',
-                    textDecoration: t.done ? 'line-through' : 'none',
-                  }}>
-                    <span style={{ color: t.done ? 'var(--green)' : 'var(--border)' }}>
-                      {t.done ? '✓' : '○'}
-                    </span>
-                    {t.label}
-                  </div>
+                  <TaskItem
+                    key={t.id}
+                    task={t}
+                    onToggle={() => toggleTask(t.id)}
+                    onRemove={() => removeTask(t.id)}
+                  />
                 ))}
               </div>
             )}
