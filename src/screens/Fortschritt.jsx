@@ -137,49 +137,6 @@ export default function Fortschritt() {
         </div>
       </div>
 
-      {/* Milestones */}
-      <div className="card">
-        <span className="label">Deine Meilensteine</span>
-        {[
-          { done: loggedDays >= 1, text: 'Erster Check-in gemacht' },
-          { done: loggedDays >= 3, text: '3 Tage in Folge eingecheckt' },
-          { done: jobs.length >= 1, text: 'Ersten Job im Tracker' },
-          { done: jobs.some(j => j.status === 'gespräch'), text: 'Ins Gespräch gekommen' },
-          { done: jobs.some(j => j.status === 'final'), text: 'In der Finalrunde' },
-          { done: growthFields.length >= 1, text: 'Wachstumsfeld angelegt' },
-          { done: ideas.length >= 5, text: '5 Ideen gesammelt' },
-          { done: completedIdeas >= 1, text: 'Erste Idee erlebt' },
-        ].map((m, i) => (
-          <div key={i} style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            padding: '9px 0',
-            borderBottom: '1px solid var(--border)',
-            opacity: m.done ? 1 : 0.45,
-          }}>
-            <div style={{
-              width: 22,
-              height: 22,
-              borderRadius: '50%',
-              background: m.done ? 'var(--green)' : 'var(--border)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '0.7rem',
-              color: 'white',
-              flexShrink: 0,
-              transition: 'background 0.2s',
-            }}>
-              {m.done ? '✓' : '○'}
-            </div>
-            <span style={{ fontSize: '0.875rem', color: m.done ? 'var(--text)' : 'var(--text-muted)' }}>
-              {m.text}
-            </span>
-          </div>
-        ))}
-      </div>
-
       {/* Profil */}
       <ProfileCard />
 
