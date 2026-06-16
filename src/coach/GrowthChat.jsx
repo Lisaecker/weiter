@@ -83,6 +83,17 @@ export default function GrowthChat({ field, onClose }) {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, isTyping])
 
+  // Scroll to bottom when keyboard opens on mobile
+  useEffect(() => {
+    const el = chatEndRef.current
+    if (!el) return
+    const observer = new ResizeObserver(() => {
+      el.scrollIntoView({ behavior: 'smooth' })
+    })
+    observer.observe(document.body)
+    return () => observer.disconnect()
+  }, [])
+
   // Auto-start on first open
   useEffect(() => {
     if (messages.length > 0) return
@@ -160,7 +171,7 @@ export default function GrowthChat({ field, onClose }) {
   const phaseIdx = PHASES.findIndex(p => p.id === phase)
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'var(--bg)', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'var(--bg)', display: 'flex', flexDirection: 'column', height: '100dvh' }}>
 
       {/* ── Header ── */}
       <div style={{
