@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import Coach from '../components/Coach.jsx'
+import GrowthChat from '../coach/GrowthChat.jsx'
 import { useLocalStorage } from '../hooks/useLocalStorage.js'
 import { growthMessages } from '../data/coachMessages.js'
 
@@ -22,6 +23,7 @@ export default function Wachstum() {
   const [newName, setNewName] = useState('')
   const [newColor, setNewColor] = useState(COLORS[0])
   const [activeExercise, setActiveExercise] = useState(null)
+  const [chatField, setChatField] = useState(null)
 
   const addField = () => {
     if (!newName.trim()) return
@@ -58,6 +60,8 @@ export default function Wachstum() {
     : 'Lege dein erstes Wachstumsfeld an — was möchtest du in dir stärken?'
 
   return (
+    <>
+    {chatField && <GrowthChat field={chatField} onClose={() => setChatField(null)} />}
     <div className="screen">
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
         <h1 style={{ fontSize: '1.5rem' }}>Wachstum</h1>
@@ -133,14 +137,16 @@ export default function Wachstum() {
             onDelete={deleteField}
             activeExercise={activeExercise}
             onExercise={() => setActiveExercise(activeExercise === field.id ? null : field.id)}
+            onChat={() => setChatField(field)}
           />
         ))
       )}
     </div>
+    </>
   )
 }
 
-function GrowthCard({ field, onUpdate, onDelete, activeExercise, onExercise }) {
+function GrowthCard({ field, onUpdate, onDelete, activeExercise, onExercise, onChat }) {
   const [expanded, setExpanded] = useState(false)
   const exercise = getExercise(field.name)
 
@@ -203,7 +209,7 @@ function GrowthCard({ field, onUpdate, onDelete, activeExercise, onExercise }) {
           +
         </button>
         <button
-          onClick={onExercise}
+          onClick={onChat}
           style={{
             flex: 1,
             padding: '8px 12px',
@@ -212,7 +218,7 @@ function GrowthCard({ field, onUpdate, onDelete, activeExercise, onExercise }) {
             color: field.color,
             fontSize: '0.8rem',
             fontWeight: 500,
-            background: activeExercise === field.id ? `${field.color}15` : 'transparent',
+            background: 'transparent',
           }}
         >
           💡 Übung
