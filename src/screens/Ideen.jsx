@@ -42,8 +42,6 @@ export default function Ideen() {
   const updateIdea = (id, patch) => setIdeas(prev => prev.map(i => i.id === id ? { ...i, ...patch } : i))
   const deleteIdea = (id) => setIdeas(prev => prev.filter(i => i.id !== id))
 
-  const filtered = filter === 'alle' ? ideas : ideas.filter(i => i.category === filter)
-
   return (
     <div className="screen">
       <div style={{ marginBottom: 20 }}>
