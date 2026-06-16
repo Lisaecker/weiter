@@ -1,6 +1,15 @@
 import { useState } from 'react'
 import Coach from '../components/Coach.jsx'
 import { useLocalStorage } from '../hooks/useLocalStorage.js'
+import { generateSyncCode } from '../components/Onboarding.jsx'
+
+const SITUATION_ICONS = {
+  'job-weg':    '🔄',
+  'raus':       '🚪',
+  'elternzeit': '🌿',
+  'pause':      '⏸',
+  'erstmal':    '✨',
+}
 
 const ENERGY_EMOJIS = { 1: '😴', 2: '😕', 3: '😐', 4: '🙂', 5: '⚡' }
 const ENERGY_LABELS = { 1: 'Erschöpft', 2: 'Müde', 3: 'OK', 4: 'Gut', 5: 'Energievoll' }
@@ -170,6 +179,170 @@ export default function Fortschritt() {
           </div>
         ))}
       </div>
+
+      {/* Profil */}
+      <ProfileCard />
+
+      {/* Sync-Code */}
+      <SyncCard />
+    </div>
+  )
+}
+
+function ProfileCard() {
+  const [showConfirm, setShowConfirm] = useState(false)
+
+  const raw = localStorage.getItem('userProfile')
+  const profile = raw ? JSON.parse(raw) : null
+
+  if (!profile) return null
+
+  const reset = () => {
+    localStorage.removeItem('userProfile')
+    window.location.reload()
+  }
+
+  return (
+    <div className="card" style={{ border: '1px solid var(--border)' }}>
+      <span className="label">Mein Profil</span>
+
+      {/* Situation + Gefühl */}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16, marginTop: 8 }}>
+        <span style={{
+          fontSize: '0.82rem', padding: '5px 12px', borderRadius: '100px',
+          background: 'var(--green-pale)', color: 'var(--green)', fontWeight: 500,
+        }}>
+          {SITUATION_ICONS[profile.situation]} {profile.situationLabel}
+        </span>
+        <span style={{
+          fontSize: '0.82rem', padding: '5px 12px', borderRadius: '100px',
+          background: 'var(--bg)', color: 'var(--text-muted)',
+          border: '1px solid var(--border)',
+        }}>
+          {profile.feelingEmoji} {profile.feelingLabel}
+        </span>
+      </div>
+
+      {/* Fragen & Antworten */}
+      {profile.questions?.map((q, i) => (
+        profile.answers?.[i] ? (
+          <div key={i} style={{ marginBottom: 12 }}>
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 3, lineHeight: 1.4 }}>
+              {q}
+            </p>
+            <p style={{
+              fontSize: '0.875rem', color: 'var(--text)', lineHeight: 1.5,
+              padding: '8px 12px', background: 'var(--bg)',
+              borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)',
+            }}>
+              {profile.answers[i]}
+            </p>
+          </div>
+        ) : null
+      ))}
+
+      {/* Seit wann dabei */}
+      {profile.completedAt && (
+        <p style={{ fontSize: '0.72rem', color: 'var(--text-light)', marginBottom: 14, marginTop: 4 }}>
+          Dabei seit {new Date(profile.completedAt).toLocaleDateString('de-DE', { day: 'numeric', month: 'long', year: 'numeric' })}
+        </p>
+      )}
+
+      {/* Reset */}
+      {!showConfirm ? (
+        <button
+          onClick={() => setShowConfirm(true)}
+          style={{
+            padding: '9px 16px', borderRadius: 'var(--radius-sm)',
+            border: '1.5px solid var(--border)', color: 'var(--text-muted)',
+            fontSize: '0.82rem', width: '100%', background: 'transparent',
+          }}
+        >
+          Profil aktualisieren
+        </button>
+      ) : (
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={reset}
+            style={{
+              flex: 1, padding: '9px', borderRadius: 'var(--radius-sm)',
+              background: '#EF4444', color: 'white',
+              fontSize: '0.82rem', fontWeight: 500,
+            }}
+          >
+            Ja, neu starten
+          </button>
+          <button
+            onClick={() => setShowConfirm(false)}
+            style={{
+              flex: 1, padding: '9px', borderRadius: 'var(--radius-sm)',
+              border: '1.5px solid var(--border)', color: 'var(--text-muted)',
+              fontSize: '0.82rem', background: 'transparent',
+            }}
+          >
+            Abbrechen
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function SyncCard() {
+  const [code, setCode] = useState(null)
+  const [copied, setCopied] = useState(false)
+
+  const generate = () => setCode(generateSyncCode())
+
+  const copy = () => {
+    navigator.clipboard.writeText(code).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  return (
+    <div className="card" style={{ border: '1px solid var(--border)' }}>
+      <span className="label">Geräte synchronisieren</span>
+      <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: 12, lineHeight: 1.5 }}>
+        Erzeuge einen Code und gib ihn auf einem anderen Gerät beim Start ein — alle Daten werden übertragen.
+      </p>
+      {!code ? (
+        <button
+          onClick={generate}
+          style={{
+            padding: '10px 16px', borderRadius: 'var(--radius-sm)',
+            border: '1.5px solid var(--green)', color: 'var(--green)',
+            fontSize: '0.875rem', fontWeight: 500, width: '100%',
+            background: 'transparent',
+          }}
+        >
+          Sync-Code erzeugen
+        </button>
+      ) : (
+        <div>
+          <div style={{
+            background: 'var(--bg)', borderRadius: 'var(--radius-sm)',
+            padding: '10px 12px', marginBottom: 10,
+            fontSize: '0.7rem', color: 'var(--text-muted)',
+            wordBreak: 'break-all', lineHeight: 1.6,
+            border: '1px solid var(--border)',
+            maxHeight: 80, overflowY: 'auto',
+          }}>
+            {code}
+          </div>
+          <button
+            onClick={copy}
+            className="btn-primary"
+            style={{ background: copied ? 'var(--green-light)' : 'var(--green)' }}
+          >
+            {copied ? '✓ Kopiert!' : 'Code kopieren'}
+          </button>
+          <p style={{ fontSize: '0.72rem', color: 'var(--text-light)', marginTop: 8, lineHeight: 1.5 }}>
+            Code auf neuem Gerät beim Start eingeben. Enthält alle deine aktuellen Daten.
+          </p>
+        </div>
+      )}
     </div>
   )
 }

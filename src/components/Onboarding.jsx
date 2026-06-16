@@ -1,5 +1,26 @@
 import { useState, useRef, useEffect } from 'react'
 
+const ALL_KEYS = ['userProfile', 'energyLog', 'taskLog', 'eveningLog', 'jobs', 'ideas', 'growthFields']
+
+export function generateSyncCode() {
+  const data = {}
+  ALL_KEYS.forEach(k => {
+    const v = localStorage.getItem(k)
+    if (v) data[k] = JSON.parse(v)
+  })
+  return btoa(unescape(encodeURIComponent(JSON.stringify(data))))
+}
+
+export function applySyncCode(code) {
+  try {
+    const data = JSON.parse(decodeURIComponent(escape(atob(code.trim()))))
+    ALL_KEYS.forEach(k => {
+      if (data[k] !== undefined) localStorage.setItem(k, JSON.stringify(data[k]))
+    })
+    return true
+  } catch { return false }
+}
+
 const SITUATIONS = [
   { id: 'job-weg',    label: 'Mein Job ist weg — ich starte neu' },
   { id: 'raus',       label: 'Ich bin noch drin — aber will raus' },
@@ -56,9 +77,21 @@ const COACH_QUESTIONS = {
 }
 
 export default function Onboarding({ onDone }) {
-  const [step, setStep] = useState(1)
+  const [step, setStep] = useState(0) // 0 = Einstieg, 1-3 = Onboarding
+  const [syncInput, setSyncInput] = useState('')
+  const [syncError, setSyncError] = useState(false)
   const [situation, setSituation] = useState(null)
   const [feeling, setFeeling] = useState(null)
+
+  const handleSyncCode = () => {
+    const ok = applySyncCode(syncInput)
+    if (ok) {
+      const profile = JSON.parse(localStorage.getItem('userProfile') || 'null')
+      if (profile) { onDone(profile); return }
+    }
+    setSyncError(true)
+    setTimeout(() => setSyncError(false), 2500)
+  }
   const [chatStep, setChatStep] = useState(0) // 0 = noch nicht gestartet, 1 = frage1, 2 = frage2, 3 = fertig
   const [answers, setAnswers] = useState(['', ''])
   const [inputVal, setInputVal] = useState('')
@@ -119,7 +152,7 @@ export default function Onboarding({ onDone }) {
   const finish = () => {
     const situationLabel = SITUATIONS.find(s => s.id === situation)?.label || ''
     const feelingObj = FEELINGS.find(f => f.value === feeling)
-    onDone({
+    const profile = {
       situation,
       situationLabel,
       feeling,
@@ -128,7 +161,9 @@ export default function Onboarding({ onDone }) {
       answers,
       questions,
       completedAt: new Date().toISOString(),
-    })
+    }
+    localStorage.setItem('userProfile', JSON.stringify(profile))
+    onDone(profile)
   }
 
   return (
@@ -140,23 +175,82 @@ export default function Onboarding({ onDone }) {
       padding: '0 0 40px',
     }}>
 
-      {/* Progress dots */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'center',
-        gap: 8,
-        padding: '52px 0 32px',
-      }}>
-        {[1, 2, 3].map(s => (
-          <div key={s} style={{
-            width: s === step ? 24 : 8,
-            height: 8,
-            borderRadius: 100,
-            background: s <= step ? 'var(--green)' : 'var(--border)',
-            transition: 'all 0.35s ease',
-          }} />
-        ))}
-      </div>
+      {/* Progress dots — nur bei Schritt 1-3 */}
+      {step > 0 && (
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 8, padding: '52px 0 32px' }}>
+          {[1, 2, 3].map(s => (
+            <div key={s} style={{
+              width: s === step ? 24 : 8, height: 8, borderRadius: 100,
+              background: s <= step ? 'var(--green)' : 'var(--border)',
+              transition: 'all 0.35s ease',
+            }} />
+          ))}
+        </div>
+      )}
+
+      {/* ── Schritt 0: Einstieg ── */}
+      {step === 0 && (
+        <div className="fade-in" style={{ flex: 1, padding: '52px 24px 0' }}>
+          <div style={{ textAlign: 'center', marginBottom: 48 }}>
+            <div style={{
+              width: 64, height: 64, borderRadius: '50%',
+              background: 'var(--green)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: '1.6rem', margin: '0 auto 20px',
+            }}>✦</div>
+            <h1 style={{ fontFamily: 'Lora, serif', fontSize: '1.8rem', marginBottom: 10 }}>
+              Weiter.
+            </h1>
+            <p style={{ fontSize: '0.95rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>
+              Dein Begleiter in der Transformation.<br />Für Menschen, die neu starten.
+            </p>
+          </div>
+
+          <button
+            className="btn-primary"
+            onClick={() => setStep(1)}
+            style={{ marginBottom: 14, fontSize: '1rem', padding: '14px' }}
+          >
+            Jetzt einrichten →
+          </button>
+
+          {/* Sync-Code Bereich */}
+          <div style={{
+            borderTop: '1px solid var(--border)', paddingTop: 20, marginTop: 8,
+          }}>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 10, textAlign: 'center' }}>
+              Schon dabei? Sync-Code vom anderen Gerät eingeben:
+            </p>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                className="input-field"
+                placeholder="Sync-Code einfügen …"
+                value={syncInput}
+                onChange={e => setSyncInput(e.target.value)}
+                style={{
+                  flex: 1, fontSize: '0.8rem',
+                  border: syncError ? '1.5px solid #EF4444' : undefined,
+                }}
+              />
+              <button
+                onClick={handleSyncCode}
+                style={{
+                  padding: '0 14px', background: 'var(--green)', color: 'white',
+                  borderRadius: 'var(--radius-sm)', fontSize: '0.85rem', fontWeight: 500,
+                  flexShrink: 0,
+                }}
+              >
+                Los
+              </button>
+            </div>
+            {syncError && (
+              <p style={{ fontSize: '0.75rem', color: '#EF4444', marginTop: 6 }}>
+                Code ungültig — bitte nochmal prüfen.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── Schritt 1: Situation ── */}
       {step === 1 && (
@@ -389,13 +483,19 @@ export default function Onboarding({ onDone }) {
           )}
 
           {chatStep === 3 && (
-            <button
-              className="btn-primary"
-              onClick={finish}
-              style={{ marginTop: 8, fontSize: '1rem', padding: '14px 20px' }}
-            >
-              Los geht's 🌱
-            </button>
+            <div>
+              <button
+                className="btn-primary"
+                onClick={finish}
+                style={{ marginTop: 8, fontSize: '1rem', padding: '14px 20px', marginBottom: 14 }}
+              >
+                Los geht's 🌱
+              </button>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.5 }}>
+                Nach dem Start findest du unter <strong>Fortschritt → Sync</strong> einen Code,<br />
+                mit dem du auf jedem Gerät einsteigen kannst.
+              </p>
+            </div>
           )}
         </div>
       )}
