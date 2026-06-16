@@ -86,7 +86,7 @@ export default function GrowthChat({ field, onClose }) {
   // Auto-start on first open
   useEffect(() => {
     if (messages.length > 0) return
-    const trigger = `Ich möchte an meinem Wachstumsfeld "${field.name}" arbeiten. Starte die Standortbestimmung mit deiner ersten Frage.`
+    const trigger = `Ich möchte an meinem Wachstumsfeld "${field.name}" arbeiten. Stelle dich kurz vor — erkläre in 1-2 Sätzen welche Rolle du in dieser Session übernimmst und wie wir zusammenarbeiten werden. Dann stelle direkt deine erste Standort-Frage.`
     const initApi = [{ role: 'user', content: trigger }]
     setApiMessages(initApi)
     setIsTyping(true)
