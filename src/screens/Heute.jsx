@@ -414,7 +414,7 @@ export default function Heute() {
 
     const userMsg = { role: 'user', content: text }
     // Nur echte Chat-Nachrichten an die API (focus-card überspringen)
-    const chatHistory = [...todayMessages.filter(m => m.role !== 'focus-card'), userMsg]
+    const chatHistory = [...todayMessages.filter(m => m.role !== 'focus-card' && m.role !== 'task-saved'), userMsg]
     const withUser = [...todayMessages, userMsg]
     setDailyChat(prev => ({ ...prev, [today]: withUser }))
 
@@ -423,12 +423,38 @@ export default function Heute() {
     setLoading(true)
     try {
       const reply = await askCoachChat(chatHistory)
-      const hasFokus = reply.includes('[FOKUS]')
-      const cleanReply = reply.replace('[FOKUS]', '').trim()
 
-      const newMessages = hasFokus
-        ? [...withUser, { role: 'assistant', content: cleanReply }, { role: 'focus-card', content: '' }]
-        : [...withUser, { role: 'assistant', content: cleanReply }]
+      // [FOKUS] Tag
+      const hasFokus = reply.includes('[FOKUS]')
+
+      // [TASK: ...] Tags extrahieren
+      const taskMatches = [...reply.matchAll(/\[TASK:\s*([^\]]+)\]/g)]
+      const newTaskLabels = taskMatches.map(m => m[1].trim())
+
+      // Tags aus dem angezeigten Text entfernen
+      const cleanReply = reply
+        .replace('[FOKUS]', '')
+        .replace(/\[TASK:[^\]]+\]/g, '')
+        .trim()
+
+      // Tasks automatisch speichern
+      if (newTaskLabels.length > 0) {
+        setTaskLog(prev => {
+          const existing = prev[today] || []
+          const existingLabels = existing.map(t => t.label)
+          const toAdd = newTaskLabels
+            .filter(l => !existingLabels.includes(l))
+            .map(l => ({ label: l, done: false, id: Date.now() + Math.random() }))
+          return { ...prev, [today]: [...existing, ...toAdd] }
+        })
+      }
+
+      const newMessages = [
+        ...withUser,
+        { role: 'assistant', content: cleanReply },
+        ...(newTaskLabels.length > 0 ? [{ role: 'task-saved', content: newTaskLabels.join(', ') }] : []),
+        ...(hasFokus ? [{ role: 'focus-card', content: '' }] : []),
+      ]
 
       setDailyChat(prev => ({ ...prev, [today]: newMessages }))
     } catch {
@@ -521,6 +547,20 @@ export default function Heute() {
         {todayMessages.map((msg, i) => {
           if (msg.role === 'assistant') return <CoachBubble key={i} text={msg.content} />
           if (msg.role === 'user') return <UserBubble key={i} text={msg.content} />
+          if (msg.role === 'task-saved') return (
+            <div key={i} style={{
+              display: 'flex', justifyContent: 'center', marginBottom: 12,
+            }}>
+              <div style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                background: 'var(--green-pale)', border: '1px solid var(--green)',
+                borderRadius: '100px', padding: '5px 14px',
+                fontSize: '0.75rem', color: 'var(--green)', fontWeight: 600,
+              }}>
+                ✓ Notiert: {msg.content}
+              </div>
+            </div>
+          )
           if (msg.role === 'focus-card') return (
             <FocusCard
               key={i}
