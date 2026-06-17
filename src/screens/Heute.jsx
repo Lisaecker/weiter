@@ -19,11 +19,7 @@ function getDaysUntil(dateStr) {
 }
 
 const ENERGY_WORDS = {
-  1: 'sehr erschöpft',
-  2: 'müde',
-  3: 'okay',
-  4: 'gut',
-  5: 'sehr energievoll',
+  1: 'sehr erschöpft', 2: 'müde', 3: 'okay', 4: 'gut', 5: 'richtig in Fahrt',
 }
 
 function getYesterdayEnergy() {
@@ -45,8 +41,7 @@ function getLastEveningReflection() {
     yesterday.setDate(yesterday.getDate() - 1)
     const key = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Berlin' }).format(yesterday)
     const entry = eveningLog[key]
-    if (!entry?.saved) return null
-    return entry.morgen || null // "Was machst du morgen anders"
+    return entry?.saved ? (entry.morgen || null) : null
   } catch { return null }
 }
 
@@ -64,52 +59,96 @@ function buildOpeningTrigger(interviews, hour) {
     .filter(iv => iv.daysAgo >= 0 && iv.daysAgo <= 2)
     .sort((a, b) => a.daysAgo - b.daysAgo)[0]
 
-  const yesterdayEnergy = getYesterdayEnergy()
+  const ye = getYesterdayEnergy()
   const lastIntention = getLastEveningReflection()
 
-  // Kontext-Snippets für natürlichere Eröffnung
-  const energyContext = yesterdayEnergy
-    ? `Gestern war die Person ${yesterdayEnergy.word}${yesterdayEnergy.level <= 2 ? ' — das ist ein schwieriger Tag gewesen' : ''}.`
+  const energyCtx = ye
+    ? `Gestern war die Person ${ye.word}${ye.level <= 2 ? ' — das war ein harter Tag' : ''}.`
     : ''
-  const intentionContext = lastIntention
-    ? `Sie hatte sich gestern Abend vorgenommen: "${lastIntention}".`
+  const intentionCtx = lastIntention
+    ? `Sie hatte sich vorgenommen: "${lastIntention}".`
     : ''
 
   if (isEvening) {
-    if (recentDone && recentDone.daysAgo === 0) {
-      return `Eröffne das Abendgespräch. Heute war das Interview bei ${recentDone.company}. Frage wie es gelaufen ist — offen, menschlich, ohne Wertungsskala.`
+    if (recentDone?.daysAgo === 0 || (upcoming?.daysUntil === 0)) {
+      const company = recentDone?.company || upcoming?.company
+      return `Eröffne das Abendgespräch. Heute war das Interview bei ${company}. Frag wie es gelaufen ist — offen, menschlich.`
     }
-    if (upcoming && upcoming.daysUntil === 0) {
-      return `Eröffne das Abendgespräch. Heute war das Interview bei ${upcoming.company}. Frage wie es gelaufen ist.`
-    }
-    return `Eröffne das Abendgespräch. ${energyContext} Frage was heute wirklich bewegt hat — persönlich, konkret, nicht generisch.`
+    return `Eröffne das Abendgespräch. ${energyCtx} Frag was heute wirklich bewegt hat — persönlich, konkret.`
   }
 
   if (upcoming) {
     const d = upcoming.daysUntil
-    if (d === 0) {
-      return `Eröffne den Morgen. Heute ist das Interview bei ${upcoming.company}. ${energyContext} Frag zuerst wie die Person sich gerade fühlt.`
-    }
-    if (d === 1) {
-      return `Eröffne den Morgen. Morgen ist das Interview bei ${upcoming.company}. ${energyContext} Starte mit dem Befinden, bring das Interview dann natürlich ins Gespräch.`
-    }
-    if (d <= 7) {
-      return `Eröffne den Morgen. In ${d} Tagen ist das Interview bei ${upcoming.company}. ${energyContext} Frag zuerst wie es geht.`
-    }
+    if (d === 0) return `Eröffne den Morgen. Heute ist das Interview bei ${upcoming.company}. ${energyCtx} Frag wie die Person sich gerade fühlt.`
+    if (d === 1) return `Eröffne den Morgen. Morgen ist das Interview bei ${upcoming.company}. ${energyCtx} Starte mit dem Befinden.`
+    if (d <= 7) return `Eröffne den Morgen. In ${d} Tagen ist das Interview bei ${upcoming.company}. ${energyCtx} Frag zuerst wie es geht.`
   }
 
   if (recentDone) {
-    return `Eröffne den Morgen. Vor ${recentDone.daysAgo === 0 ? 'kurzem' : recentDone.daysAgo + ' Tag'} war das Interview bei ${recentDone.company}. Frag wie die Person das verarbeitet hat.`
+    return `Eröffne den Morgen. Vor ${recentDone.daysAgo} Tag${recentDone.daysAgo > 1 ? 'en' : ''} war das Interview bei ${recentDone.company}. Frag wie die Person das verarbeitet hat.`
   }
 
-  // Standard-Morgen: persönlich, mit Kontext
-  if (energyContext || intentionContext) {
-    return `Eröffne den Morgen. ${energyContext} ${intentionContext} Frag wie die Person heute aufgewacht ist — beziehe dich auf den gestrigen Tag, ohne ihn kleinzureden. Sprich natürliches Deutsch.`
+  if (energyCtx || intentionCtx) {
+    return `Eröffne den Morgen. ${energyCtx} ${intentionCtx} Stell eine persönliche, konkrete Einstiegsfrage die sich auf den gestrigen Tag bezieht. Kein generisches "Wie geht es dir". Sprich natürliches Deutsch.`
   }
 
-  return `Eröffne den Morgen mit einer echten, persönlichen Frage wie es der Person wirklich geht. Kein "Guten Morgen! Wie geht es dir?" — konkreter, wärmer. Sprich natürliches Deutsch.`
+  return `Eröffne den Morgen mit einer echten, warmen Frage. Nicht generisch — konkret und menschlich. Natürliches Deutsch.`
 }
 
+// ── Voice Button ──────────────────────────────────────────────────────────────
+function VoiceButton({ onTranscript, disabled }) {
+  const [listening, setListening] = useState(false)
+  const recogRef = useRef(null)
+
+  const toggle = useCallback(() => {
+    if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
+      alert('Spracherkennung wird in diesem Browser nicht unterstützt.')
+      return
+    }
+    if (listening) {
+      recogRef.current?.stop()
+      setListening(false)
+      return
+    }
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+    const r = new SR()
+    r.lang = 'de-DE'
+    r.continuous = true
+    r.interimResults = false
+    r.onresult = e => {
+      const text = Array.from(e.results)
+        .slice(e.resultIndex)
+        .map(res => res[0].transcript)
+        .join('')
+      onTranscript(text)
+    }
+    r.onend = () => setListening(false)
+    r.start()
+    recogRef.current = r
+    setListening(true)
+  }, [listening, onTranscript])
+
+  return (
+    <button
+      onClick={toggle}
+      disabled={disabled}
+      title={listening ? 'Aufnahme stoppen' : 'Spracheingabe'}
+      style={{
+        width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
+        background: listening ? '#DC2626' : 'var(--bg-card)',
+        border: `1.5px solid ${listening ? '#DC2626' : 'var(--border)'}`,
+        color: listening ? 'white' : 'var(--text-muted)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: '1.1rem', transition: 'all 0.2s',
+        animation: listening ? 'pulse 1.5s ease infinite' : 'none',
+      }}
+    >
+      {listening ? '⏹' : '🎙'}
+    </button>
+  )
+}
+
+// ── Bubbles ───────────────────────────────────────────────────────────────────
 function TypingDots() {
   return (
     <div style={{ display: 'flex', gap: 4, padding: '4px 0', alignItems: 'center' }}>
@@ -139,9 +178,10 @@ function CoachBubble({ text, loading }) {
         borderRadius: '4px 16px 16px 16px',
         padding: '12px 16px', maxWidth: 'calc(100% - 42px)',
       }}>
-        {loading ? <TypingDots /> : (
-          <p style={{ color: 'white', fontSize: '0.9rem', lineHeight: 1.6, margin: 0 }}>{text}</p>
-        )}
+        {loading
+          ? <TypingDots />
+          : <p style={{ color: 'white', fontSize: '0.9rem', lineHeight: 1.6, margin: 0 }}>{text}</p>
+        }
       </div>
     </div>
   )
@@ -161,13 +201,93 @@ function UserBubble({ text }) {
   )
 }
 
+// ── Fokus-Karte im Chat ───────────────────────────────────────────────────────
+function FocusCard({ tasks, onAdd, onToggle, onRemove }) {
+  const [input, setInput] = useState('')
+  const done = tasks.filter(t => t.done).length
+
+  const handleAdd = () => {
+    if (!input.trim()) return
+    onAdd(input.trim())
+    setInput('')
+  }
+
+  return (
+    <div style={{
+      background: 'var(--bg-card)', border: '1px solid var(--green)',
+      borderRadius: 16, padding: 16, marginBottom: 16,
+      borderLeft: '3px solid var(--green)',
+    }}>
+      <div style={{
+        fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.1em',
+        textTransform: 'uppercase', color: 'var(--green)', marginBottom: 12,
+      }}>
+        Fokus heute {tasks.length > 0 && `· ${done}/${tasks.length}`}
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, marginBottom: tasks.length > 0 ? 12 : 0 }}>
+        <input
+          className="input-field"
+          placeholder="Was ist dein Fokus heute?"
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && handleAdd()}
+          style={{ flex: 1, fontSize: '0.875rem' }}
+          autoFocus
+        />
+        <button
+          onClick={handleAdd}
+          style={{
+            width: 40, height: 40, background: input.trim() ? 'var(--green)' : 'var(--border)',
+            color: 'white', borderRadius: 'var(--radius-sm)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: '1.2rem', transition: 'background 0.15s', flexShrink: 0,
+          }}
+        >+</button>
+      </div>
+
+      {tasks.map(task => (
+        <div key={task.id} style={{
+          display: 'flex', alignItems: 'center', gap: 10,
+          padding: '9px 0', borderBottom: '1px solid var(--border)',
+        }}>
+          <button
+            onClick={() => onToggle(task.id)}
+            style={{
+              width: 22, height: 22, borderRadius: 6,
+              border: task.done ? 'none' : '2px solid var(--border)',
+              background: task.done ? 'var(--green)' : 'transparent',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0, color: 'white', fontSize: '0.7rem',
+            }}
+          >{task.done ? '✓' : ''}</button>
+          <span style={{
+            flex: 1, fontSize: '0.875rem',
+            color: task.done ? 'var(--text-muted)' : 'var(--text)',
+            textDecoration: task.done ? 'line-through' : 'none',
+          }}>{task.label}</span>
+          <button onClick={() => onRemove(task.id)}
+            style={{ color: 'var(--text-light)', fontSize: '1rem', padding: '0 4px' }}>×</button>
+        </div>
+      ))}
+
+      {tasks.length > 0 && done === tasks.length && (
+        <div style={{
+          marginTop: 12, textAlign: 'center',
+          fontSize: '0.82rem', color: 'var(--green)', fontWeight: 600,
+        }}>
+          Alles erledigt — starker Tag. 🎉
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Interview Badge + Modal ───────────────────────────────────────────────────
 function InterviewBadge({ interview }) {
   const days = getDaysUntil(interview.date)
-  const isToday = days === 0
-  const isTomorrow = days === 1
-  const label = isToday ? 'Heute' : isTomorrow ? 'Morgen' : `in ${days} Tagen`
-  const color = isToday ? '#DC2626' : days <= 2 ? '#D97706' : '#2D6A4F'
-
+  const label = days === 0 ? 'Heute' : days === 1 ? 'Morgen' : `in ${days} Tagen`
+  const color = days === 0 ? '#DC2626' : days <= 2 ? '#D97706' : '#2D6A4F'
   return (
     <div style={{
       display: 'inline-flex', alignItems: 'center', gap: 6,
@@ -175,8 +295,7 @@ function InterviewBadge({ interview }) {
       borderRadius: '100px', padding: '4px 12px 4px 8px',
       fontSize: '0.75rem', color, fontWeight: 600,
     }}>
-      <span>⌖</span>
-      <span>{label} · {interview.company}</span>
+      <span>⌖</span><span>{label} · {interview.company}</span>
     </div>
   )
 }
@@ -204,46 +323,23 @@ function AddInterviewModal({ onSave, onClose }) {
       }} onClick={e => e.stopPropagation()}>
         <div style={{ fontSize: '1rem', fontWeight: 700, marginBottom: 20 }}>Interview eintragen</div>
         <div style={{ marginBottom: 14 }}>
-          <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>
-            Unternehmen *
-          </label>
-          <input
-            className="input-field"
-            placeholder="z.B. Siemens"
-            value={company}
-            onChange={e => setCompany(e.target.value)}
-            autoFocus
-          />
+          <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>Unternehmen *</label>
+          <input className="input-field" placeholder="z.B. Siemens" value={company}
+            onChange={e => setCompany(e.target.value)} autoFocus />
         </div>
         <div style={{ marginBottom: 14 }}>
-          <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>
-            Rolle (optional)
-          </label>
-          <input
-            className="input-field"
-            placeholder="z.B. Head of Customer Success"
-            value={role}
-            onChange={e => setRole(e.target.value)}
-          />
+          <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>Rolle (optional)</label>
+          <input className="input-field" placeholder="z.B. Head of Customer Success"
+            value={role} onChange={e => setRole(e.target.value)} />
         </div>
         <div style={{ marginBottom: 24 }}>
-          <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>
-            Datum *
-          </label>
-          <input
-            className="input-field"
-            type="date"
-            value={date}
-            onChange={e => setDate(e.target.value)}
-            min={getBerlinDate()}
-          />
+          <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>Datum *</label>
+          <input className="input-field" type="date" value={date}
+            onChange={e => setDate(e.target.value)} min={getBerlinDate()} />
         </div>
-        <button
-          className="btn-primary"
-          onClick={save}
+        <button className="btn-primary" onClick={save}
           disabled={!company.trim() || !date}
-          style={{ opacity: !company.trim() || !date ? 0.5 : 1 }}
-        >
+          style={{ opacity: !company.trim() || !date ? 0.5 : 1 }}>
           Speichern
         </button>
       </div>
@@ -251,88 +347,7 @@ function AddInterviewModal({ onSave, onClose }) {
   )
 }
 
-function TaskSection({ tasks, onAdd, onToggle, onRemove }) {
-  const [input, setInput] = useState('')
-  const [open, setOpen] = useState(true)
-  const done = tasks.filter(t => t.done).length
-
-  const handleAdd = () => {
-    if (!input.trim()) return
-    onAdd(input.trim())
-    setInput('')
-  }
-
-  return (
-    <div className="card" style={{ marginTop: 12 }}>
-      <button
-        onClick={() => setOpen(o => !o)}
-        style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          width: '100%', padding: 0, background: 'none',
-        }}
-      >
-        <span className="label" style={{ marginBottom: 0 }}>
-          Mein Fokus heute
-          {tasks.length > 0 && (
-            <span style={{ marginLeft: 8, fontSize: '0.7rem', color: done === tasks.length && tasks.length > 0 ? 'var(--green)' : 'var(--text-muted)', fontWeight: 400 }}>
-              {done}/{tasks.length}
-            </span>
-          )}
-        </span>
-        <span style={{ color: 'var(--text-light)', fontSize: '0.75rem' }}>{open ? '▲' : '▼'}</span>
-      </button>
-
-      {open && (
-        <div style={{ marginTop: 14 }}>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-            <input
-              className="input-field"
-              placeholder="Was willst du heute schaffen?"
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleAdd()}
-              style={{ flex: 1 }}
-            />
-            <button
-              onClick={handleAdd}
-              style={{
-                width: 44, height: 44, background: input.trim() ? 'var(--green)' : 'var(--border)',
-                color: 'white', borderRadius: 'var(--radius-sm)',
-                fontSize: '1.3rem', flexShrink: 0,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                transition: 'background 0.15s',
-              }}
-            >+</button>
-          </div>
-          {tasks.map(task => (
-            <div key={task.id} style={{
-              display: 'flex', alignItems: 'center', gap: 10,
-              padding: '10px 0', borderBottom: '1px solid var(--border)',
-            }}>
-              <button
-                onClick={() => onToggle(task.id)}
-                style={{
-                  width: 22, height: 22, borderRadius: 6,
-                  border: task.done ? 'none' : '2px solid var(--border)',
-                  background: task.done ? 'var(--green)' : 'transparent',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  flexShrink: 0, transition: 'all 0.15s', color: 'white', fontSize: '0.7rem',
-                }}
-              >{task.done ? '✓' : ''}</button>
-              <span style={{
-                flex: 1, fontSize: '0.9rem',
-                color: task.done ? 'var(--text-muted)' : 'var(--text)',
-                textDecoration: task.done ? 'line-through' : 'none',
-              }}>{task.label}</span>
-              <button onClick={() => onRemove(task.id)} style={{ color: 'var(--text-light)', fontSize: '1rem', padding: '0 4px' }}>×</button>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
+// ── Hauptkomponente ───────────────────────────────────────────────────────────
 export default function Heute() {
   const today = getBerlinDate()
   const hour = getBerlinHour()
@@ -341,12 +356,9 @@ export default function Heute() {
   const [taskLog, setTaskLog] = useLocalStorage('taskLog', {})
   const [interviews, setInterviews] = useLocalStorage('interviews', [])
 
-  const profile = (() => {
-    try { return JSON.parse(localStorage.getItem('userProfile') || 'null') } catch { return null }
-  })()
-
   const todayMessages = dailyChat[today] || []
   const todayTasks = taskLog[today] || []
+  const focusVisible = todayMessages.some(m => m.role === 'focus-card')
 
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -360,70 +372,65 @@ export default function Heute() {
     .filter(iv => iv.status === 'upcoming' && getDaysUntil(iv.date) >= 0)
     .sort((a, b) => getDaysUntil(a.date) - getDaysUntil(b.date))
 
-  const scrollToBottom = useCallback(() => {
+  useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [])
+  }, [todayMessages, loading])
 
-  useEffect(() => { scrollToBottom() }, [todayMessages, loading])
-
-  // Coach-Eröffnung wenn kein Chat für heute
+  // Coach-Eröffnung
   useEffect(() => {
     if (initialized.current) return
     initialized.current = true
     if (todayMessages.length > 0) return
+
     if (!import.meta.env.VITE_ANTHROPIC_API_KEY) {
       const fallback = hour >= 18
         ? 'Wie war dein Tag heute — was hat dich bewegt?'
-        : 'Guten Morgen — wie geht es dir heute wirklich?'
-      setDailyChat(prev => ({
-        ...prev,
-        [today]: [{ role: 'assistant', content: fallback }],
-      }))
+        : 'Hey — wie geht es dir heute wirklich?'
+      setDailyChat(prev => ({ ...prev, [today]: [{ role: 'assistant', content: fallback }] }))
       return
     }
+
     const trigger = buildOpeningTrigger(interviews, hour)
     setLoading(true)
     askCoachChat([{ role: 'user', content: trigger }])
       .then(text => {
-        setDailyChat(prev => ({
-          ...prev,
-          [today]: [{ role: 'assistant', content: text }],
-        }))
+        setDailyChat(prev => ({ ...prev, [today]: [{ role: 'assistant', content: text }] }))
       })
       .catch(() => {
-        const fallback = hour >= 18
-          ? 'Wie war dein Tag heute — was hat dich bewegt?'
-          : 'Guten Morgen — wie geht es dir heute wirklich?'
-        setDailyChat(prev => ({
-          ...prev,
-          [today]: [{ role: 'assistant', content: fallback }],
-        }))
+        const fallback = hour >= 18 ? 'Wie war dein Tag?' : 'Hey — wie geht es dir heute?'
+        setDailyChat(prev => ({ ...prev, [today]: [{ role: 'assistant', content: fallback }] }))
       })
       .finally(() => setLoading(false))
   }, [])
 
-  const sendMessage = async () => {
-    const text = input.trim()
+  const sendMessage = async (textOverride) => {
+    const text = (textOverride ?? input).trim()
     if (!text || loading) return
-    setInput('')
+    if (!textOverride) setInput('')
 
     const userMsg = { role: 'user', content: text }
-    const newMessages = [...todayMessages, userMsg]
-    setDailyChat(prev => ({ ...prev, [today]: newMessages }))
+    // Nur echte Chat-Nachrichten an die API (focus-card überspringen)
+    const chatHistory = [...todayMessages.filter(m => m.role !== 'focus-card'), userMsg]
+    const withUser = [...todayMessages, userMsg]
+    setDailyChat(prev => ({ ...prev, [today]: withUser }))
 
     if (!import.meta.env.VITE_ANTHROPIC_API_KEY) return
 
     setLoading(true)
     try {
-      const reply = await askCoachChat(newMessages)
-      setDailyChat(prev => ({
-        ...prev,
-        [today]: [...(prev[today] || []), { role: 'assistant', content: reply }],
-      }))
+      const reply = await askCoachChat(chatHistory)
+      const hasFokus = reply.includes('[FOKUS]')
+      const cleanReply = reply.replace('[FOKUS]', '').trim()
+
+      const newMessages = hasFokus
+        ? [...withUser, { role: 'assistant', content: cleanReply }, { role: 'focus-card', content: '' }]
+        : [...withUser, { role: 'assistant', content: cleanReply }]
+
+      setDailyChat(prev => ({ ...prev, [today]: newMessages }))
     } catch {
       setDailyChat(prev => ({
         ...prev,
-        [today]: [...(prev[today] || []), { role: 'assistant', content: 'Ich bin gerade kurz weg — schreib nochmal.' }],
+        [today]: [...withUser, { role: 'assistant', content: 'Ich bin kurz weg — schreib nochmal.' }],
       }))
     } finally {
       setLoading(false)
@@ -431,34 +438,22 @@ export default function Heute() {
     }
   }
 
-  const addTask = label => {
-    setTaskLog(prev => ({
-      ...prev,
-      [today]: [...(prev[today] || []), { label, done: false, id: Date.now() }],
-    }))
-  }
+  const handleVoiceTranscript = useCallback((text) => {
+    setInput(prev => prev ? prev + ' ' + text : text)
+  }, [])
 
-  const toggleTask = id => {
-    setTaskLog(prev => ({
-      ...prev,
-      [today]: prev[today].map(t => t.id === id ? { ...t, done: !t.done } : t),
-    }))
-  }
-
-  const removeTask = id => {
-    setTaskLog(prev => ({
-      ...prev,
-      [today]: prev[today].filter(t => t.id !== id),
-    }))
-  }
-
-  const addInterview = iv => {
-    setInterviews(prev => [...prev, iv])
-  }
-
-  const markInterviewDone = id => {
-    setInterviews(prev => prev.map(iv => iv.id === id ? { ...iv, status: 'done' } : iv))
-  }
+  const addTask = label => setTaskLog(prev => ({
+    ...prev,
+    [today]: [...(prev[today] || []), { label, done: false, id: Date.now() }],
+  }))
+  const toggleTask = id => setTaskLog(prev => ({
+    ...prev,
+    [today]: prev[today].map(t => t.id === id ? { ...t, done: !t.done } : t),
+  }))
+  const removeTask = id => setTaskLog(prev => ({
+    ...prev,
+    [today]: prev[today].filter(t => t.id !== id),
+  }))
 
   const dateLabel = new Intl.DateTimeFormat('de-DE', {
     timeZone: 'Europe/Berlin', weekday: 'long', day: 'numeric', month: 'long',
@@ -475,8 +470,7 @@ export default function Heute() {
       <div style={{
         padding: '52px 20px 12px',
         borderBottom: '1px solid var(--border)',
-        background: 'var(--bg)',
-        flexShrink: 0,
+        background: 'var(--bg)', flexShrink: 0,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
@@ -491,22 +485,16 @@ export default function Heute() {
               border: '1.5px solid var(--border)', background: 'var(--bg)',
               fontSize: '0.78rem', color: 'var(--text-muted)',
             }}
-          >
-            <span>⌖</span> Interview
-          </button>
+          ><span>⌖</span> Interview</button>
         </div>
-
-        {/* Kommende Interviews */}
         {upcomingInterviews.length > 0 && (
           <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {upcomingInterviews.slice(0, 2).map(iv => (
               <div key={iv.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <InterviewBadge interview={iv} />
                 {getDaysUntil(iv.date) <= 0 && (
-                  <button
-                    onClick={() => markInterviewDone(iv.id)}
-                    style={{ fontSize: '0.7rem', color: 'var(--text-light)', textDecoration: 'underline' }}
-                  >
+                  <button onClick={() => setInterviews(prev => prev.map(i => i.id === iv.id ? { ...i, status: 'done' } : i))}
+                    style={{ fontSize: '0.7rem', color: 'var(--text-light)', textDecoration: 'underline' }}>
                     erledigt
                   </button>
                 )}
@@ -516,40 +504,39 @@ export default function Heute() {
         )}
       </div>
 
-      {/* Chat-Bereich */}
+      {/* Chat */}
       <div style={{
-        flex: 1, overflowY: 'auto',
-        padding: '20px 20px 8px',
+        flex: 1, overflowY: 'auto', padding: '20px 20px 8px',
         WebkitOverflowScrolling: 'touch',
       }}>
-        {todayMessages.map((msg, i) => (
-          msg.role === 'assistant'
-            ? <CoachBubble key={i} text={msg.content} />
-            : <UserBubble key={i} text={msg.content} />
-        ))}
+        {todayMessages.map((msg, i) => {
+          if (msg.role === 'assistant') return <CoachBubble key={i} text={msg.content} />
+          if (msg.role === 'user') return <UserBubble key={i} text={msg.content} />
+          if (msg.role === 'focus-card') return (
+            <FocusCard
+              key={i}
+              tasks={todayTasks}
+              onAdd={addTask}
+              onToggle={toggleTask}
+              onRemove={removeTask}
+            />
+          )
+          return null
+        })}
         {loading && <CoachBubble loading />}
-
-        {/* Task-Section im Chat */}
-        <TaskSection
-          tasks={todayTasks}
-          onAdd={addTask}
-          onToggle={toggleTask}
-          onRemove={removeTask}
-        />
-
         <div ref={chatEndRef} style={{ height: 1 }} />
       </div>
 
       {/* Input */}
       <div style={{
-        padding: '12px 16px',
-        paddingBottom: 'calc(12px + env(safe-area-inset-bottom))',
+        padding: '10px 16px',
         borderTop: '1px solid var(--border)',
-        background: 'rgba(250,250,247,0.95)',
+        background: 'rgba(250,250,247,0.97)',
         backdropFilter: 'blur(16px)',
         flexShrink: 0,
       }}>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+          <VoiceButton onTranscript={handleVoiceTranscript} disabled={loading} />
           <textarea
             ref={inputRef}
             className="input-field"
@@ -560,13 +547,10 @@ export default function Heute() {
               if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() }
             }}
             rows={1}
-            style={{
-              flex: 1, resize: 'none', lineHeight: 1.5,
-              maxHeight: 120, overflow: 'auto',
-            }}
+            style={{ flex: 1, resize: 'none', lineHeight: 1.5, maxHeight: 100, overflow: 'auto' }}
           />
           <button
-            onClick={sendMessage}
+            onClick={() => sendMessage()}
             disabled={!input.trim() || loading}
             style={{
               width: 44, height: 44, borderRadius: '50%',
@@ -581,7 +565,7 @@ export default function Heute() {
 
       {showAddInterview && (
         <AddInterviewModal
-          onSave={addInterview}
+          onSave={iv => setInterviews(prev => [...prev, iv])}
           onClose={() => setShowAddInterview(false)}
         />
       )}
