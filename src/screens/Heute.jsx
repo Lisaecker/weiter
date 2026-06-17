@@ -92,7 +92,7 @@ function buildOpeningTrigger(interviews, hour) {
     return `Eröffne den Morgen. ${energyCtx} ${intentionCtx} Stell eine persönliche, konkrete Einstiegsfrage die sich auf den gestrigen Tag bezieht. Kein generisches "Wie geht es dir". Sprich natürliches Deutsch.`
   }
 
-  return `Eröffne den Morgen mit einer echten, warmen Frage. Nicht generisch — konkret und menschlich. Natürliches Deutsch.`
+  return null
 }
 
 // ── Voice Button ──────────────────────────────────────────────────────────────
@@ -391,6 +391,14 @@ export default function Heute() {
     }
 
     const trigger = buildOpeningTrigger(interviews, hour)
+
+    // Kein Interview-Kontext → direkt mit fixer Begrüßung starten
+    if (!trigger) {
+      const greeting = hour >= 18 ? 'Wie war dein Tag heute — was hat dich bewegt?' : 'Hey — wie geht es dir heute?'
+      setDailyChat(prev => ({ ...prev, [today]: [{ role: 'assistant', content: greeting }] }))
+      return
+    }
+
     setLoading(true)
     askCoachChat([{ role: 'user', content: trigger }])
       .then(text => {
