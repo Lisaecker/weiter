@@ -1,9 +1,7 @@
 const tabs = [
-  { id: 'tag', label: 'Mein Tag', icon: '☀︎' },
-  { id: 'fortschritt', label: 'Fortschritt', icon: '◎' },
-  { id: 'jobs', label: 'Jobtracker', icon: '⌖' },
+  { id: 'heute', label: 'Heute', icon: '◎' },
   { id: 'wachstum', label: 'Wachstum', icon: '↑' },
-  { id: 'ideen', label: 'Ideen & so', icon: '✦' },
+  { id: 'verlauf', label: 'Verlauf', icon: '☀︎' },
 ]
 
 export default function TabBar({ active, onChange }) {

@@ -1,14 +1,12 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import TabBar from './components/TabBar.jsx'
 import Onboarding from './components/Onboarding.jsx'
-import MeinTag from './screens/MeinTag.jsx'
-import Fortschritt from './screens/Fortschritt.jsx'
-import Jobtracker from './screens/Jobtracker.jsx'
+import Heute from './screens/Heute.jsx'
+import Verlauf from './screens/Verlauf.jsx'
 import Wachstum from './screens/Wachstum.jsx'
-import Ideen from './screens/Ideen.jsx'
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('tag')
+  const [activeTab, setActiveTab] = useState('heute')
   const [profile, setProfile] = useState(() => {
     try {
       const stored = localStorage.getItem('userProfile')
@@ -26,11 +24,9 @@ export default function App() {
   }
 
   const screens = {
-    tag: <MeinTag />,
-    fortschritt: <Fortschritt />,
-    jobs: <Jobtracker />,
+    heute: <Heute />,
     wachstum: <Wachstum />,
-    ideen: <Ideen />,
+    verlauf: <Verlauf />,
   }
 
   return (
