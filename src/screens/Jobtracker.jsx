@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import Coach from '../components/Coach.jsx'
 import { useLocalStorage } from '../hooks/useLocalStorage.js'
 import { jobTrackerInsights } from '../data/coachMessages.js'
@@ -304,6 +304,92 @@ function JobCard({ job, onStatusChange, onOpen }) {
   )
 }
 
+function VoiceButton({ onTranscript }) {
+  const [recording, setRecording] = useState(false)
+  const recognitionRef = useRef(null)
+
+  const toggle = useCallback(() => {
+    if (recording) {
+      recognitionRef.current?.stop()
+      setRecording(false)
+      return
+    }
+
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!SR) {
+      alert('Sprachaufnahme wird von diesem Browser nicht unterstützt (Chrome/Safari empfohlen).')
+      return
+    }
+
+    const r = new SR()
+    r.lang = 'de-DE'
+    r.continuous = true
+    r.interimResults = false
+
+    r.onresult = (e) => {
+      const text = Array.from(e.results).map(res => res[0].transcript).join(' ')
+      onTranscript(text)
+    }
+    r.onend = () => setRecording(false)
+    r.onerror = () => setRecording(false)
+
+    r.start()
+    recognitionRef.current = r
+    setRecording(true)
+  }, [recording, onTranscript])
+
+  return (
+    <button
+      onClick={toggle}
+      title={recording ? 'Aufnahme stoppen' : 'Spracheingabe starten'}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 5,
+        padding: '4px 10px', borderRadius: '100px',
+        border: `1.5px solid ${recording ? '#EF4444' : 'var(--border)'}`,
+        background: recording ? '#FEF2F2' : 'transparent',
+        color: recording ? '#EF4444' : 'var(--text-muted)',
+        fontSize: '0.75rem', fontWeight: 500,
+        transition: 'all 0.2s',
+      }}
+    >
+      <span style={{
+        display: 'inline-block', width: 7, height: 7, borderRadius: '50%',
+        background: recording ? '#EF4444' : 'var(--text-light)',
+        animation: recording ? 'voicePulse 1.2s ease infinite' : 'none',
+      }} />
+      {recording ? 'Stoppen' : '🎤 Sprache'}
+      <style>{`
+        @keyframes voicePulse {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.4; transform: scale(1.4); }
+        }
+      `}</style>
+    </button>
+  )
+}
+
+function VoiceTextarea({ value, onChange, placeholder, rows = 4 }) {
+  const append = useCallback((transcript) => {
+    onChange(value ? value + ' ' + transcript : transcript)
+  }, [value, onChange])
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}>
+        <VoiceButton onTranscript={append} />
+      </div>
+      <textarea
+        className="input-field"
+        placeholder={placeholder}
+        rows={rows}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        style={{ resize: 'none', lineHeight: 1.55 }}
+      />
+    </div>
+  )
+}
+
 function JobDetail({ job, onUpdate, onDelete, onBack }) {
   const s = getStatus(job.status)
   const [feedback, setFeedback] = useState(job.feedback || '')
@@ -437,40 +523,25 @@ function JobDetail({ job, onUpdate, onDelete, onBack }) {
       {/* Feedback von Unternehmen */}
       <div className="card" style={{ marginBottom: 12 }}>
         <span className="label">Feedback vom Unternehmen</span>
-        <textarea
-          className="input-field"
+        <VoiceTextarea
+          value={feedback}
+          onChange={setFeedback}
           placeholder="Was hat das Unternehmen zurückgemeldet? Kritikpunkte, Lob, Begründung der Absage …"
           rows={4}
-          value={feedback}
-          onChange={e => setFeedback(e.target.value)}
-          style={{ resize: 'none', lineHeight: 1.55 }}
         />
       </div>
 
       {/* Selbstreflexion */}
       <div className="card" style={{ marginBottom: 16 }}>
         <span className="label">Selbstreflexion nach dem Interview</span>
-        <div style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 4,
-          marginBottom: 10,
-          padding: '10px 12px',
-          background: 'var(--bg)',
-          borderRadius: 'var(--radius-sm)',
-          border: '1px solid var(--border)',
-        }}>
-          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
-            💭 <em>Was lief gut? Was würdest du anders machen? Wie hat sich das Gespräch angefühlt?</em>
-          </p>
-        </div>
-        <textarea
-          className="input-field"
+        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: 1.5, marginBottom: 8 }}>
+          💭 <em>Was lief gut? Was würdest du anders machen? Wie hat sich das Gespräch angefühlt?</em>
+        </p>
+        <VoiceTextarea
+          value={reflection}
+          onChange={setReflection}
           placeholder="Meine Gedanken nach dem Gespräch …"
           rows={5}
-          value={reflection}
-          onChange={e => setReflection(e.target.value)}
-          style={{ resize: 'none', lineHeight: 1.55 }}
         />
       </div>
 
