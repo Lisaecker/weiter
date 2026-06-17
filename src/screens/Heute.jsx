@@ -88,10 +88,6 @@ function buildOpeningTrigger(interviews, hour) {
     return `Eröffne den Morgen. Vor ${recentDone.daysAgo} Tag${recentDone.daysAgo > 1 ? 'en' : ''} war das Interview bei ${recentDone.company}. Frag wie die Person das verarbeitet hat.`
   }
 
-  if (energyCtx || intentionCtx) {
-    return `Eröffne den Morgen. ${energyCtx} ${intentionCtx} Stell eine persönliche, konkrete Einstiegsfrage die sich auf den gestrigen Tag bezieht. Kein generisches "Wie geht es dir". Sprich natürliches Deutsch.`
-  }
-
   return null
 }
 
