@@ -109,5 +109,5 @@ export async function askCoach(userMessage) {
 export async function askCoachChat(messages) {
   const context = buildContext()
   const systemPrompt = buildSystemPrompt(context)
-  return callApi(systemPrompt, messages, 400)
+  return callApi(systemPrompt, messages, 250)
 }

@@ -414,7 +414,8 @@ export default function Heute() {
 
     const userMsg = { role: 'user', content: text }
     // Nur echte Chat-Nachrichten an die API (focus-card überspringen)
-    const chatHistory = [...todayMessages.filter(m => m.role !== 'focus-card' && m.role !== 'task-saved'), userMsg]
+    const allHistory = [...todayMessages.filter(m => m.role !== 'focus-card' && m.role !== 'task-saved'), userMsg]
+    const chatHistory = allHistory.slice(-10) // max 10 Nachrichten → Token-Kontrolle
     const withUser = [...todayMessages, userMsg]
     setDailyChat(prev => ({ ...prev, [today]: withUser }))
 
