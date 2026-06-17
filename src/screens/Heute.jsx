@@ -18,9 +18,40 @@ function getDaysUntil(dateStr) {
   return Math.round((target - today) / (1000 * 60 * 60 * 24))
 }
 
-function buildOpeningTrigger(interviews, hour, name) {
+const ENERGY_WORDS = {
+  1: 'sehr erschöpft',
+  2: 'müde',
+  3: 'okay',
+  4: 'gut',
+  5: 'sehr energievoll',
+}
+
+function getYesterdayEnergy() {
+  try {
+    const energyLog = JSON.parse(localStorage.getItem('energyLog') || '{}')
+    const yesterday = new Date()
+    yesterday.setDate(yesterday.getDate() - 1)
+    const key = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Berlin' }).format(yesterday)
+    const entry = energyLog[key]
+    const level = entry?.level ?? entry ?? null
+    return level ? { level, word: ENERGY_WORDS[level] } : null
+  } catch { return null }
+}
+
+function getLastEveningReflection() {
+  try {
+    const eveningLog = JSON.parse(localStorage.getItem('eveningLog') || '{}')
+    const yesterday = new Date()
+    yesterday.setDate(yesterday.getDate() - 1)
+    const key = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Berlin' }).format(yesterday)
+    const entry = eveningLog[key]
+    if (!entry?.saved) return null
+    return entry.morgen || null // "Was machst du morgen anders"
+  } catch { return null }
+}
+
+function buildOpeningTrigger(interviews, hour) {
   const isEvening = hour >= 18
-  const firstName = name?.split(' ')[0] || ''
 
   const upcoming = interviews
     .filter(iv => iv.status === 'upcoming')
@@ -33,34 +64,50 @@ function buildOpeningTrigger(interviews, hour, name) {
     .filter(iv => iv.daysAgo >= 0 && iv.daysAgo <= 2)
     .sort((a, b) => a.daysAgo - b.daysAgo)[0]
 
+  const yesterdayEnergy = getYesterdayEnergy()
+  const lastIntention = getLastEveningReflection()
+
+  // Kontext-Snippets für natürlichere Eröffnung
+  const energyContext = yesterdayEnergy
+    ? `Gestern war die Person ${yesterdayEnergy.word}${yesterdayEnergy.level <= 2 ? ' — das ist ein schwieriger Tag gewesen' : ''}.`
+    : ''
+  const intentionContext = lastIntention
+    ? `Sie hatte sich gestern Abend vorgenommen: "${lastIntention}".`
+    : ''
+
   if (isEvening) {
     if (recentDone && recentDone.daysAgo === 0) {
-      return `Eröffne das Abendgespräch. Heute war das Interview bei ${recentDone.company}. Frage zuerst wie es gelaufen ist — offen, nicht mit einer Wertungsskala.`
+      return `Eröffne das Abendgespräch. Heute war das Interview bei ${recentDone.company}. Frage wie es gelaufen ist — offen, menschlich, ohne Wertungsskala.`
     }
     if (upcoming && upcoming.daysUntil === 0) {
       return `Eröffne das Abendgespräch. Heute war das Interview bei ${upcoming.company}. Frage wie es gelaufen ist.`
     }
-    return `Eröffne das Abendgespräch für heute. Frage was heute bewegt hat — ein konkreter, persönlicher Einstieg. Keine generische Frage.`
+    return `Eröffne das Abendgespräch. ${energyContext} Frage was heute wirklich bewegt hat — persönlich, konkret, nicht generisch.`
   }
 
   if (upcoming) {
     const d = upcoming.daysUntil
     if (d === 0) {
-      return `Eröffne den Morgen. Heute ist das Interview bei ${upcoming.company}. Frag wie die Person sich gerade fühlt — direkt und menschlich.`
+      return `Eröffne den Morgen. Heute ist das Interview bei ${upcoming.company}. ${energyContext} Frag zuerst wie die Person sich gerade fühlt.`
     }
     if (d === 1) {
-      return `Eröffne den Morgen. Morgen ist das Interview bei ${upcoming.company}. Starte mit wie es der Person geht, dann bring das Interview natürlich ins Gespräch.`
+      return `Eröffne den Morgen. Morgen ist das Interview bei ${upcoming.company}. ${energyContext} Starte mit dem Befinden, bring das Interview dann natürlich ins Gespräch.`
     }
     if (d <= 7) {
-      return `Eröffne den Morgen. In ${d} Tagen ist das Interview bei ${upcoming.company}. Frag zuerst wie es geht, dann schlag vor heute einen Vorbereitungsbaustein anzugehen.`
+      return `Eröffne den Morgen. In ${d} Tagen ist das Interview bei ${upcoming.company}. ${energyContext} Frag zuerst wie es geht.`
     }
   }
 
   if (recentDone) {
-    return `Eröffne den Morgen. Vor ${recentDone.daysAgo === 0 ? 'kurzem' : recentDone.daysAgo + ' Tag(en)'} war das Interview bei ${recentDone.company}. Frag wie die Person das verarbeitet hat.`
+    return `Eröffne den Morgen. Vor ${recentDone.daysAgo === 0 ? 'kurzem' : recentDone.daysAgo + ' Tag'} war das Interview bei ${recentDone.company}. Frag wie die Person das verarbeitet hat.`
   }
 
-  return `Eröffne den Morgen mit einer persönlichen, warmen Frage wie es der Person wirklich geht. Keine generische Begrüßung.`
+  // Standard-Morgen: persönlich, mit Kontext
+  if (energyContext || intentionContext) {
+    return `Eröffne den Morgen. ${energyContext} ${intentionContext} Frag wie die Person heute aufgewacht ist — beziehe dich auf den gestrigen Tag, ohne ihn kleinzureden. Sprich natürliches Deutsch.`
+  }
+
+  return `Eröffne den Morgen mit einer echten, persönlichen Frage wie es der Person wirklich geht. Kein "Guten Morgen! Wie geht es dir?" — konkreter, wärmer. Sprich natürliches Deutsch.`
 }
 
 function TypingDots() {
@@ -334,7 +381,7 @@ export default function Heute() {
       }))
       return
     }
-    const trigger = buildOpeningTrigger(interviews, hour, profile?.answers?.[0])
+    const trigger = buildOpeningTrigger(interviews, hour)
     setLoading(true)
     askCoachChat([{ role: 'user', content: trigger }])
       .then(text => {
@@ -421,6 +468,7 @@ export default function Heute() {
     <div style={{
       display: 'flex', flexDirection: 'column',
       height: '100dvh', maxWidth: 430, margin: '0 auto',
+      paddingBottom: 'var(--tab-height)',
     }}>
 
       {/* Header */}
