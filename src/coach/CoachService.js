@@ -1,5 +1,50 @@
 import { buildSystemPrompt } from './systemPrompt.js'
 
+// ── Circuit Breaker ───────────────────────────────────────────────────────────
+const BREAKER_KEY = 'apiCircuitBreaker'
+const MAX_CALLS_PER_MINUTE = 8
+const MAX_CALLS_PER_DAY = 60
+
+function checkCircuitBreaker() {
+  const now = Date.now()
+  const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Berlin' }).format(new Date())
+
+  let breaker
+  try { breaker = JSON.parse(localStorage.getItem(BREAKER_KEY) || '{}') }
+  catch { breaker = {} }
+
+  // Tages-Reset
+  if (breaker.date !== today) {
+    breaker = { date: today, dailyCalls: 0, minuteCalls: [], tripped: false }
+  }
+
+  // Bereits ausgelöst
+  if (breaker.tripped) {
+    throw new Error('CIRCUIT_BREAKER: Zu viele API-Calls heute. Bitte morgen wieder versuchen.')
+  }
+
+  // Calls der letzten Minute
+  const oneMinuteAgo = now - 60_000
+  breaker.minuteCalls = (breaker.minuteCalls || []).filter(t => t > oneMinuteAgo)
+
+  if (breaker.minuteCalls.length >= MAX_CALLS_PER_MINUTE) {
+    breaker.tripped = true
+    localStorage.setItem(BREAKER_KEY, JSON.stringify(breaker))
+    throw new Error('CIRCUIT_BREAKER: Zu viele Anfragen pro Minute — mögliche Schleife erkannt.')
+  }
+
+  if ((breaker.dailyCalls || 0) >= MAX_CALLS_PER_DAY) {
+    breaker.tripped = true
+    localStorage.setItem(BREAKER_KEY, JSON.stringify(breaker))
+    throw new Error('CIRCUIT_BREAKER: Tages-Limit erreicht (60 Calls).')
+  }
+
+  // Call registrieren
+  breaker.minuteCalls.push(now)
+  breaker.dailyCalls = (breaker.dailyCalls || 0) + 1
+  localStorage.setItem(BREAKER_KEY, JSON.stringify(breaker))
+}
+
 function getBerlinDate() {
   return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Berlin' }).format(new Date())
 }
@@ -72,6 +117,8 @@ export function buildContext() {
 async function callApi(systemPrompt, messages, maxTokens = 350) {
   const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
   if (!apiKey) throw new Error('Kein API Key konfiguriert')
+
+  checkCircuitBreaker()
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
