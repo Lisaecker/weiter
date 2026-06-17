@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import Coach from '../components/Coach.jsx'
+import PushSetup from '../components/PushSetup.jsx'
 import { useLocalStorage } from '../hooks/useLocalStorage.js'
 import { generateSyncCode } from '../components/Onboarding.jsx'
 
@@ -139,6 +140,9 @@ export default function Fortschritt() {
 
       {/* Profil */}
       <ProfileCard />
+
+      {/* Push-Benachrichtigungen */}
+      <PushSetup />
 
       {/* Sync-Code */}
       <SyncCard />

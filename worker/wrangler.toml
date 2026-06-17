@@ -1,0 +1,17 @@
+name = "weiter-push"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+[[kv_namespaces]]
+binding = "SUBSCRIPTIONS"
+id = "2f29d7e7b8004775b80900289d6ba612"
+
+[vars]
+VAPID_SUBJECT = "mailto:lisa.a.ecker@googlemail.com"
+VAPID_PUBLIC_KEY = "BHTS_r6D4smPe1VEdfl1wMRpyOWO9Qb6u1a5pN3dDUUD-Mwul5DB0RGh7ZXah6YDQdLjRj8tLr1UlzsJ36E1YCo"
+
+# VAPID_PRIVATE_KEY wird als Secret gesetzt (nicht hier!):
+# wrangler secret put VAPID_PRIVATE_KEY
+
+[triggers]
+crons = ["0 6 * * *", "0 18 * * *"]
