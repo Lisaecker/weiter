@@ -192,7 +192,7 @@ function SyncCard() {
 export default function Verlauf() {
   const [energyLog] = useLocalStorage('energyLog', {})
   const [taskLog] = useLocalStorage('taskLog', {})
-  const [interviews] = useLocalStorage('interviews', [])
+  const [interviews, setInterviews] = useLocalStorage('interviews', [])
   const today = getBerlinDate()
   const last7 = getLast7Days()
 
@@ -262,11 +262,11 @@ export default function Verlauf() {
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                 padding: '10px 0', borderBottom: '1px solid var(--border)',
               }}>
-                <div>
+                <div style={{ flex: 1 }}>
                   <div style={{ fontSize: '0.875rem', fontWeight: 600 }}>{iv.company}</div>
                   {iv.role && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{iv.role}</div>}
                 </div>
-                <div style={{ textAlign: 'right' }}>
+                <div style={{ textAlign: 'right', marginRight: 8 }}>
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                     {new Date(iv.date).toLocaleDateString('de-DE')}
                   </div>
@@ -278,6 +278,11 @@ export default function Verlauf() {
                     {iv.status === 'done' ? 'Geführt' : 'Geplant'}
                   </div>
                 </div>
+                <button
+                  onClick={() => setInterviews(prev => prev.filter(i => i.id !== iv.id))}
+                  style={{ color: 'var(--text-light)', fontSize: '1.1rem', padding: '0 4px', flexShrink: 0 }}
+                  title="Löschen"
+                >×</button>
               </div>
             ))}
         </div>

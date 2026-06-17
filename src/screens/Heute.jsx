@@ -490,7 +490,7 @@ export default function Heute() {
         {upcomingInterviews.length > 0 && (
           <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {upcomingInterviews.slice(0, 2).map(iv => (
-              <div key={iv.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div key={iv.id} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                 <InterviewBadge interview={iv} />
                 {getDaysUntil(iv.date) <= 0 && (
                   <button onClick={() => setInterviews(prev => prev.map(i => i.id === iv.id ? { ...i, status: 'done' } : i))}
@@ -498,6 +498,11 @@ export default function Heute() {
                     erledigt
                   </button>
                 )}
+                <button
+                  onClick={() => setInterviews(prev => prev.filter(i => i.id !== iv.id))}
+                  style={{ fontSize: '0.9rem', color: 'var(--text-light)', padding: '2px 4px', lineHeight: 1 }}
+                  title="Löschen"
+                >×</button>
               </div>
             ))}
           </div>

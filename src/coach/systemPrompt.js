@@ -80,8 +80,11 @@ export function buildSystemPrompt(context) {
     .filter(Boolean)
     .join('\n')
 
+  const ENERGY_WORDS = {
+    1: 'sehr erschöpft', 2: 'müde', 3: 'okay', 4: 'gut', 5: 'sehr energievoll',
+  }
   const energyBlock = energyHistory.length > 0
-    ? energyHistory.map(e => `${e.date}: ${e.level}/5`).join(', ')
+    ? energyHistory.map(e => `${e.date}: ${ENERGY_WORDS[e.level] || 'unbekannt'}`).join(', ')
     : 'noch kein Verlauf'
 
   const tasksBlock = todayTasks.length > 0
