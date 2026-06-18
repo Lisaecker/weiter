@@ -129,9 +129,15 @@ async function callApi(systemPrompt, messages, maxTokens = 350) {
       'anthropic-dangerous-direct-browser-access': 'true',
     },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-6',
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: maxTokens,
-      system: systemPrompt,
+      system: [
+        {
+          type: 'text',
+          text: systemPrompt,
+          cache_control: { type: 'ephemeral' },
+        },
+      ],
       messages,
     }),
   })
