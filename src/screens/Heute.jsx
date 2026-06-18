@@ -503,10 +503,13 @@ export default function Heute() {
       ]
 
       setDailyChat(prev => ({ ...prev, [today]: newMessages }))
-    } catch {
+    } catch (err) {
+      const msg = err?.message?.includes('CIRCUIT_BREAKER')
+        ? err.message.replace('CIRCUIT_BREAKER: ', '')
+        : 'Verbindungsfehler — bitte nochmal versuchen.'
       setDailyChat(prev => ({
         ...prev,
-        [today]: [...withUser, { role: 'assistant', content: 'Ich bin kurz weg — schreib nochmal.' }],
+        [today]: [...withUser, { role: 'assistant', content: msg }],
       }))
     } finally {
       setLoading(false)

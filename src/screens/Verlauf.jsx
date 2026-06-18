@@ -200,6 +200,13 @@ export default function Verlauf() {
   const completedTasks = Object.values(taskLog).flat().filter(t => t.done).length
   const totalInterviews = interviews.filter(iv => iv.status === 'done').length
 
+  // Auto-Tracking Daten aggregieren
+  const trackingData = last7.map(d => {
+    try { return JSON.parse(localStorage.getItem(`tracking_${d}`) || '{}') } catch { return {} }
+  })
+  const totalBewerbungen = trackingData.reduce((s, d) => s + (d.bewerbungen || 0), 0)
+  const sportDays = trackingData.filter(d => d.sport).length
+
   const energyValues = last7.map(d => energyLog[d]?.level ?? energyLog[d] ?? 0).filter(Boolean)
   const avgEnergy = energyValues.length > 0
     ? (energyValues.reduce((a, b) => a + b, 0) / energyValues.length).toFixed(1)
@@ -213,10 +220,14 @@ export default function Verlauf() {
       </div>
 
       {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 10 }}>
         <StatCard value={loggedDays} label="Tage" sub="eingecheckt" color="var(--green)" icon="📅" />
         <StatCard value={completedTasks} label="Aufgaben" sub="erledigt" color="#8B5CF6" icon="✓" />
         <StatCard value={totalInterviews} label="Interviews" sub="geführt" color="var(--amber)" icon="⌖" />
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
+        <StatCard value={totalBewerbungen} label="Bewerbungen" sub="diese Woche" color="#0EA5E9" icon="📨" />
+        <StatCard value={sportDays} label="Sport-Tage" sub="diese Woche" color="#F97316" icon="🏃" />
       </div>
 
       {/* Energie-Verlauf */}
