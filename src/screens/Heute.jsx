@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { askCoachChat } from '../coach/CoachService.js'
 import { getTimeGreeting } from '../coach/timeGreeting.js'
+import { saveEnergyEntry, hasEnergyToday } from '../coach/energyTracker.js'
+import { extractTrackingData, saveTrackingData } from '../coach/autoTracker.js'
 import { useLocalStorage } from '../hooks/useLocalStorage.js'
 
 function getBerlinDate() {
@@ -198,6 +200,35 @@ function UserBubble({ text }) {
   )
 }
 
+// ── Energie-Picker ────────────────────────────────────────────────────────────
+function EnergyPicker({ onPick }) {
+  const emojis = ['😴', '😕', '😐', '🙂', '⚡']
+  return (
+    <div style={{
+      background: 'var(--bg-card)', border: '1px solid var(--border)',
+      borderRadius: 16, padding: '14px 16px', marginBottom: 16,
+    }}>
+      <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: 12 }}>
+        Wie fühlst du dich gerade?
+      </p>
+      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+        {emojis.map(e => (
+          <button
+            key={e}
+            onClick={() => onPick(e)}
+            style={{
+              fontSize: '1.6rem', width: 48, height: 48,
+              borderRadius: '50%', border: '1.5px solid var(--border)',
+              background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              transition: 'transform 0.1s',
+            }}
+          >{e}</button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ── Fokus-Karte im Chat ───────────────────────────────────────────────────────
 function FocusCard({ tasks, onAdd, onToggle, onRemove }) {
   const [input, setInput] = useState('')
@@ -389,16 +420,21 @@ export default function Heute() {
           setDailyChat(prev => ({ ...prev, [today]: [{ role: 'assistant', content: text }] }))
         })
         .catch(() => {
-          const greeting = getTimeGreeting() || 'Hey — wie geht es dir heute?'
-          setDailyChat(prev => ({ ...prev, [today]: [{ role: 'assistant', content: greeting }] }))
+          const greetingObj = getTimeGreeting()
+          const greetingText = greetingObj?.text || 'Hey — wie geht es dir heute?'
+          setDailyChat(prev => ({ ...prev, [today]: [{ role: 'assistant', content: greetingText }] }))
         })
         .finally(() => setLoading(false))
       return
     }
 
     // Kein Interview-Kontext → statische Zeit-Begrüßung (kein API-Call)
-    const greeting = getTimeGreeting() || 'Hey — wie geht es dir heute?'
-    setDailyChat(prev => ({ ...prev, [today]: [{ role: 'assistant', content: greeting }] }))
+    const greetingObj = getTimeGreeting()
+    const greetingText = greetingObj?.text || 'Hey — wie geht es dir heute?'
+    const showEnergy = greetingObj?.askEnergy && !hasEnergyToday()
+    const msgs = [{ role: 'assistant', content: greetingText }]
+    if (showEnergy) msgs.push({ role: 'energy-picker', content: '' })
+    setDailyChat(prev => ({ ...prev, [today]: msgs }))
   }, [])
 
   const sendMessage = async (textOverride) => {
@@ -407,8 +443,15 @@ export default function Heute() {
     if (!textOverride) setInput('')
 
     const userMsg = { role: 'user', content: text }
+
+    // Auto-Tracking aus Nachricht extrahieren
+    const tracked = extractTrackingData(text)
+    if (tracked.bewerbungen > 0 || tracked.interviews > 0 || tracked.sport) {
+      saveTrackingData(tracked)
+    }
+
     // Nur echte Chat-Nachrichten an die API (focus-card überspringen)
-    const allHistory = [...todayMessages.filter(m => m.role !== 'focus-card' && m.role !== 'task-saved'), userMsg]
+    const allHistory = [...todayMessages.filter(m => m.role !== 'focus-card' && m.role !== 'task-saved' && m.role !== 'energy-picker'), userMsg]
     const chatHistory = allHistory.slice(-10) // max 10 Nachrichten → Token-Kontrolle
     const withUser = [...todayMessages, userMsg]
     setDailyChat(prev => ({ ...prev, [today]: withUser }))
@@ -466,6 +509,17 @@ export default function Heute() {
   const handleVoiceTranscript = useCallback((text) => {
     setInput(prev => prev ? prev + ' ' + text : text)
   }, [])
+
+  const handleEnergyPick = (emoji) => {
+    saveEnergyEntry(emoji)
+    // Picker ersetzen durch Bestätigung
+    setDailyChat(prev => ({
+      ...prev,
+      [today]: prev[today].map(m =>
+        m.role === 'energy-picker' ? { role: 'energy-done', content: emoji } : m
+      ),
+    }))
+  }
 
   const addTask = label => setTaskLog(prev => ({
     ...prev,
@@ -553,6 +607,21 @@ export default function Heute() {
                 fontSize: '0.75rem', color: 'var(--green)', fontWeight: 600,
               }}>
                 ✓ Notiert: {msg.content}
+              </div>
+            </div>
+          )
+          if (msg.role === 'energy-picker') return (
+            <EnergyPicker key={i} onPick={handleEnergyPick} />
+          )
+          if (msg.role === 'energy-done') return (
+            <div key={i} style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
+              <div style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                background: 'var(--bg-card)', border: '1px solid var(--border)',
+                borderRadius: '100px', padding: '5px 14px',
+                fontSize: '0.82rem', color: 'var(--text-muted)',
+              }}>
+                {msg.content} Energie gespeichert
               </div>
             </div>
           )
