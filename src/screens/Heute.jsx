@@ -391,6 +391,8 @@ export default function Heute() {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [showAddInterview, setShowAddInterview] = useState(false)
+  const hasUserReplied = todayMessages.some(m => m.role === 'user')
+  const [inputActive, setInputActive] = useState(false)
 
   const chatEndRef = useRef(null)
   const inputRef = useRef(null)
@@ -658,18 +660,28 @@ export default function Heute() {
       }}>
         <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
           <VoiceButton onTranscript={handleVoiceTranscript} disabled={loading} />
-          <textarea
-            ref={inputRef}
-            className="input-field"
-            placeholder="Schreib dem Coach …"
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={e => {
-              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() }
-            }}
-            rows={1}
-            style={{ flex: 1, resize: 'none', lineHeight: 1.5, maxHeight: 100, overflow: 'auto' }}
-          />
+          {!hasUserReplied && !inputActive ? (
+            <div
+              onClick={() => { setInputActive(true); setTimeout(() => inputRef.current?.focus(), 50) }}
+              className="input-field"
+              style={{ flex: 1, lineHeight: 1.5, color: 'var(--text-muted)', cursor: 'text' }}
+            >
+              Antworten …
+            </div>
+          ) : (
+            <textarea
+              ref={inputRef}
+              className="input-field"
+              placeholder="Schreib dem Coach …"
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() }
+              }}
+              rows={1}
+              style={{ flex: 1, resize: 'none', lineHeight: 1.5, maxHeight: 100, overflow: 'auto' }}
+            />
+          )}
           <button
             onClick={() => sendMessage()}
             disabled={!input.trim() || loading}
