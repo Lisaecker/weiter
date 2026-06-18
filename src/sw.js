@@ -1,6 +1,10 @@
 import { precacheAndRoute } from 'workbox-precaching'
+import { clientsClaim } from 'workbox-core'
 
-// Workbox injiziert hier die Precache-Liste
+// Neuen SW sofort aktivieren ohne auf Tab-Schließen zu warten
+self.skipWaiting()
+clientsClaim()
+
 precacheAndRoute(self.__WB_MANIFEST)
 
 // ── Push-Notifications ────────────────────────────────────────────────────
