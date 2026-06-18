@@ -508,7 +508,8 @@ export default function Heute() {
       }))
     } finally {
       setLoading(false)
-      setTimeout(() => inputRef.current?.focus(), 100)
+      // Kein auto-focus auf Mobile — öffnet sonst sofort die Tastatur
+      if (window.innerWidth > 600) setTimeout(() => inputRef.current?.focus(), 100)
     }
   }
 
