@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { askCoachChat } from '../coach/CoachService.js'
+import { getTimeGreeting } from '../coach/timeGreeting.js'
 import { useLocalStorage } from '../hooks/useLocalStorage.js'
 
 function getBerlinDate() {
@@ -372,39 +373,32 @@ export default function Heute() {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [todayMessages, loading])
 
-  // Coach-Eröffnung
+  // Coach-Eröffnung — statische Begrüßung, kein API-Call
   useEffect(() => {
     if (initialized.current) return
     initialized.current = true
     if (todayMessages.length > 0) return
 
-    if (!import.meta.env.VITE_ANTHROPIC_API_KEY) {
-      const fallback = hour >= 18
-        ? 'Wie war dein Tag heute — was hat dich bewegt?'
-        : 'Hey — wie geht es dir heute wirklich?'
-      setDailyChat(prev => ({ ...prev, [today]: [{ role: 'assistant', content: fallback }] }))
-      return
-    }
-
     const trigger = buildOpeningTrigger(interviews, hour)
 
-    // Kein Interview-Kontext → direkt mit fixer Begrüßung starten
-    if (!trigger) {
-      const greeting = hour >= 18 ? 'Wie war dein Tag heute — was hat dich bewegt?' : 'Hey — wie geht es dir heute?'
-      setDailyChat(prev => ({ ...prev, [today]: [{ role: 'assistant', content: greeting }] }))
+    // Interview-Kontext hat Vorrang → API-Call für personalisierten Einstieg
+    if (trigger && import.meta.env.VITE_ANTHROPIC_API_KEY) {
+      setLoading(true)
+      askCoachChat([{ role: 'user', content: trigger }])
+        .then(text => {
+          setDailyChat(prev => ({ ...prev, [today]: [{ role: 'assistant', content: text }] }))
+        })
+        .catch(() => {
+          const greeting = getTimeGreeting() || 'Hey — wie geht es dir heute?'
+          setDailyChat(prev => ({ ...prev, [today]: [{ role: 'assistant', content: greeting }] }))
+        })
+        .finally(() => setLoading(false))
       return
     }
 
-    setLoading(true)
-    askCoachChat([{ role: 'user', content: trigger }])
-      .then(text => {
-        setDailyChat(prev => ({ ...prev, [today]: [{ role: 'assistant', content: text }] }))
-      })
-      .catch(() => {
-        const fallback = hour >= 18 ? 'Wie war dein Tag?' : 'Hey — wie geht es dir heute?'
-        setDailyChat(prev => ({ ...prev, [today]: [{ role: 'assistant', content: fallback }] }))
-      })
-      .finally(() => setLoading(false))
+    // Kein Interview-Kontext → statische Zeit-Begrüßung (kein API-Call)
+    const greeting = getTimeGreeting() || 'Hey — wie geht es dir heute?'
+    setDailyChat(prev => ({ ...prev, [today]: [{ role: 'assistant', content: greeting }] }))
   }, [])
 
   const sendMessage = async (textOverride) => {
