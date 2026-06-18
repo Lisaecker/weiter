@@ -549,6 +549,7 @@ export default function Heute() {
       display: 'flex', flexDirection: 'column',
       height: '100dvh', maxWidth: 430, margin: '0 auto',
       paddingBottom: 'var(--tab-height)',
+      minHeight: 0,
     }}>
 
       {/* Header */}
