@@ -549,10 +549,10 @@ export default function Heute() {
 
   return (
     <div style={{
+      position: 'fixed', inset: 0,
       display: 'flex', flexDirection: 'column',
-      height: '100dvh', maxWidth: 430, margin: '0 auto',
+      maxWidth: 430, margin: '0 auto',
       paddingBottom: 'var(--tab-height)',
-      minHeight: 0,
     }}>
 
       {/* Header */}
