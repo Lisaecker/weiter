@@ -400,8 +400,14 @@ export default function Heute() {
     .filter(iv => iv.status === 'upcoming' && getDaysUntil(iv.date) >= 0)
     .sort((a, b) => getDaysUntil(a.date) - getDaysUntil(b.date))
 
+  const chatContainerRef = useRef(null)
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (todayMessages.length <= 2 && !loading) {
+      // Initiales Laden → nach oben scrollen damit Begrüßung sichtbar ist
+      chatContainerRef.current?.scrollTo({ top: 0 })
+    } else {
+      chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
   }, [todayMessages, loading])
 
   // Coach-Eröffnung — statische Begrüßung, kein API-Call
@@ -592,7 +598,7 @@ export default function Heute() {
       <div style={{
         flex: 1, overflowY: 'auto', padding: '20px 20px 8px',
         WebkitOverflowScrolling: 'touch',
-      }}>
+      }} ref={chatContainerRef}>
         {todayMessages.map((msg, i) => {
           if (msg.role === 'assistant') return <CoachBubble key={i} text={msg.content} />
           if (msg.role === 'user') return <UserBubble key={i} text={msg.content} />
