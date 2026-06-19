@@ -524,12 +524,43 @@ export default function Heute() {
 
   const handleEnergyPick = (emoji) => {
     saveEnergyEntry(emoji)
-    // Picker ersetzen durch Bestätigung
+
+    const isGood = emoji === '🙂' || emoji === '⚡'
+    const isLow = emoji === '😴' || emoji === '😕'
+
+    let followUp
+    if (hour >= 6 && hour < 12) {
+      followUp = isGood
+        ? 'Das ist ein guter Start. Was willst du damit heute machen?'
+        : isLow
+        ? 'Ein harter Start — was ist los?'
+        : 'Okay. Was willst du heute draus machen?'
+    } else if (hour >= 12 && hour < 15) {
+      followUp = isGood
+        ? 'Was trägt dich gerade?'
+        : isLow
+        ? 'Was zieht dich gerade runter?'
+        : 'Halber Tag — was war bisher prägend?'
+    } else if (hour >= 15 && hour < 18) {
+      followUp = isGood
+        ? 'Was treibt dich an?'
+        : isLow
+        ? 'Woran liegt's?'
+        : 'Was hat den Nachmittag so gemacht?'
+    } else {
+      followUp = isGood
+        ? 'Schön, dass du den Tag mit einem guten Gefühl abschließt. An was liegt es?'
+        : isLow
+        ? 'Solche Tage gibt es. Wichtig ist zu verstehen, an was es liegt.'
+        : 'Wie war der Tag insgesamt für dich?'
+    }
+
     setDailyChat(prev => ({
       ...prev,
-      [today]: prev[today].map(m =>
-        m.role === 'energy-picker' ? { role: 'energy-done', content: emoji } : m
-      ),
+      [today]: [
+        ...prev[today].map(m => m.role === 'energy-picker' ? { role: 'energy-done', content: emoji } : m),
+        { role: 'assistant', content: followUp },
+      ],
     }))
   }
 
