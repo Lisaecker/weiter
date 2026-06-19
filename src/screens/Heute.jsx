@@ -545,7 +545,7 @@ export default function Heute() {
       followUp = isGood
         ? 'Was treibt dich an?'
         : isLow
-        ? 'Woran liegt's?'
+        ? `Woran liegt's?`
         : 'Was hat den Nachmittag so gemacht?'
     } else {
       followUp = isGood
