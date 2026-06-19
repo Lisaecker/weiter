@@ -189,20 +189,84 @@ function SyncCard() {
   )
 }
 
+function AddInterviewModal({ onSave, onClose }) {
+  const [company, setCompany] = useState('')
+  const [role, setRole] = useState('')
+  const [date, setDate] = useState('')
+  const [status, setStatus] = useState('upcoming')
+
+  const save = () => {
+    if (!company.trim() || !date) return
+    onSave({ id: Date.now(), company: company.trim(), role: role.trim(), date, status })
+    onClose()
+  }
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+      zIndex: 200, display: 'flex', alignItems: 'flex-end',
+    }} onClick={onClose}>
+      <div style={{
+        width: '100%', maxWidth: 430, margin: '0 auto',
+        background: 'var(--bg)', borderRadius: '20px 20px 0 0',
+        padding: '24px 20px 40px',
+      }} onClick={e => e.stopPropagation()}>
+        <div style={{ fontSize: '1rem', fontWeight: 700, marginBottom: 20 }}>Interview eintragen</div>
+        <div style={{ marginBottom: 14 }}>
+          <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>Unternehmen *</label>
+          <input className="input-field" placeholder="z.B. Siemens" value={company}
+            onChange={e => setCompany(e.target.value)} autoFocus />
+        </div>
+        <div style={{ marginBottom: 14 }}>
+          <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>Rolle (optional)</label>
+          <input className="input-field" placeholder="z.B. Head of Customer Success"
+            value={role} onChange={e => setRole(e.target.value)} />
+        </div>
+        <div style={{ marginBottom: 14 }}>
+          <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>Datum *</label>
+          <input className="input-field" type="date" value={date} onChange={e => setDate(e.target.value)} />
+        </div>
+        <div style={{ marginBottom: 24 }}>
+          <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>Status</label>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {[['upcoming', 'Geplant'], ['done', 'Geführt']].map(([val, label]) => (
+              <button key={val} onClick={() => setStatus(val)} style={{
+                flex: 1, padding: '8px 0', borderRadius: 'var(--radius-sm)', fontSize: '0.82rem',
+                border: `1.5px solid ${status === val ? 'var(--green)' : 'var(--border)'}`,
+                color: status === val ? 'var(--green)' : 'var(--text-muted)',
+                fontWeight: status === val ? 600 : 400,
+              }}>{label}</button>
+            ))}
+          </div>
+        </div>
+        <button className="btn-primary" onClick={save}
+          disabled={!company.trim() || !date}
+          style={{ opacity: !company.trim() || !date ? 0.5 : 1 }}>
+          Speichern
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function Verlauf() {
   const [energyLog] = useLocalStorage('energyLog', {})
   const [taskLog] = useLocalStorage('taskLog', {})
   const [interviews, setInterviews] = useLocalStorage('interviews', [])
+  const [showAddInterview, setShowAddInterview] = useState(false)
   const today = getBerlinDate()
   const last7 = getLast7Days()
 
-  const loggedDays = last7.filter(d => energyLog[d]).length
+  // Profil-Daten
+  const profile = (() => { try { return JSON.parse(localStorage.getItem('userProfile') || '{}') } catch { return {} } })()
+  const nichtVerlieren = profile.answers?.[1] || ''
+
   const completedTasks = Object.values(taskLog).flat().filter(t => t.done).length
   const totalInterviews = interviews.filter(iv => iv.status === 'done').length
 
-  // Auto-Tracking Daten aggregieren
+  // Auto-Tracking Daten
   const trackingData = last7.map(d => {
-    try { return JSON.parse(localStorage.getItem(`tracking_${d}`) || '{}') } catch { return {} }
+    try { return { date: d, ...JSON.parse(localStorage.getItem(`tracking_${d}`) || '{}') } } catch { return { date: d } }
   })
   const totalBewerbungen = trackingData.reduce((s, d) => s + (d.bewerbungen || 0), 0)
   const sportDays = trackingData.filter(d => d.sport).length
@@ -212,25 +276,98 @@ export default function Verlauf() {
     ? (energyValues.reduce((a, b) => a + b, 0) / energyValues.length).toFixed(1)
     : null
 
+  // Woche ist Freitag–Sonntag
+  const dayOfWeek = new Date().getDay()
+  const isEndOfWeek = dayOfWeek === 5 || dayOfWeek === 6 || dayOfWeek === 0
+
   return (
     <div className="screen">
-      <div style={{ marginBottom: 20 }}>
-        <h1 style={{ fontSize: '1.5rem', marginBottom: 4 }}>Dein Verlauf</h1>
-        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Was du schon geschafft hast</p>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+        <div>
+          <h1 style={{ fontSize: '1.5rem', marginBottom: 4 }}>Dein Verlauf</h1>
+          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Was du schon geschafft hast</p>
+        </div>
+        <button
+          onClick={() => setShowAddInterview(true)}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 5,
+            padding: '6px 12px', borderRadius: '100px',
+            border: '1.5px solid var(--border)', background: 'var(--bg)',
+            fontSize: '0.78rem', color: 'var(--text-muted)',
+          }}
+        ><span>⌖</span> Interview</button>
       </div>
 
-      {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 10 }}>
-        <StatCard value={loggedDays} label="Tage" sub="eingecheckt" color="var(--green)" icon="📅" />
+      {/* Wochenrückblick Coach (Fr–So) */}
+      {isEndOfWeek && (
+        <div className="card" style={{ marginBottom: 16, borderLeft: '3px solid var(--green)' }}>
+          <span className="label" style={{ color: 'var(--green)' }}>Wochenrückblick</span>
+          <p style={{ fontSize: '0.85rem', lineHeight: 1.6, marginTop: 8, color: 'var(--text-muted)' }}>
+            Diese Woche: {totalBewerbungen > 0 ? `${totalBewerbungen} Bewerbung${totalBewerbungen > 1 ? 'en' : ''}` : 'keine Bewerbungen'}, {sportDays > 0 ? `${sportDays}× Sport` : 'kein Sport'}, {totalInterviews} Interview{totalInterviews !== 1 ? 's' : ''} geführt.
+            {avgEnergy ? ` Energie im Schnitt: ${ENERGY_LABELS[Math.round(Number(avgEnergy))]}.` : ''}
+          </p>
+        </div>
+      )}
+
+      {/* Kacheln */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 16 }}>
         <StatCard value={completedTasks} label="Aufgaben" sub="erledigt" color="#8B5CF6" icon="✓" />
-        <StatCard value={totalInterviews} label="Interviews" sub="geführt" color="var(--amber)" icon="⌖" />
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
         <StatCard value={totalBewerbungen} label="Bewerbungen" sub="diese Woche" color="#0EA5E9" icon="📨" />
-        <StatCard value={sportDays} label="Sport-Tage" sub="diese Woche" color="#F97316" icon="🏃" />
+        <StatCard
+          value={sportDays}
+          label={nichtVerlieren ? nichtVerlieren.split(' ').slice(0, 2).join(' ') : 'Sport'}
+          sub="diese Woche"
+          color="#F97316"
+          icon="🏃"
+        />
       </div>
 
-      {/* Energie-Verlauf */}
+      {/* Aktivitäts-Timeline */}
+      <div className="card" style={{ marginBottom: 16 }}>
+        <span className="label">Aktivitäten — letzte 7 Tage</span>
+        <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {last7.map(day => {
+            const td = trackingData.find(d => d.date === day) || {}
+            const energy = energyLog[day]?.level ?? energyLog[day] ?? 0
+            const hasActivity = td.sport || (td.bewerbungen > 0) || energy > 0
+            if (!hasActivity) return (
+              <div key={day} style={{ display: 'flex', alignItems: 'center', gap: 10, opacity: 0.35 }}>
+                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', width: 28 }}>{formatDate(day).split(' ')[0]}</span>
+                <div style={{ height: 1, flex: 1, background: 'var(--border)' }} />
+              </div>
+            )
+            return (
+              <div key={day} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', width: 28, flexShrink: 0 }}>
+                  {formatDate(day).split(' ')[0]}
+                </span>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {energy > 0 && (
+                    <span style={{
+                      fontSize: '0.7rem', padding: '2px 8px', borderRadius: 100,
+                      background: 'var(--green-pale)', color: 'var(--green)',
+                    }}>{ENERGY_EMOJIS[energy]} {ENERGY_LABELS[energy]}</span>
+                  )}
+                  {td.sport && (
+                    <span style={{
+                      fontSize: '0.7rem', padding: '2px 8px', borderRadius: 100,
+                      background: '#FFF7ED', color: '#F97316',
+                    }}>🏃 Sport</span>
+                  )}
+                  {td.bewerbungen > 0 && (
+                    <span style={{
+                      fontSize: '0.7rem', padding: '2px 8px', borderRadius: 100,
+                      background: '#F0F9FF', color: '#0EA5E9',
+                    }}>📨 {td.bewerbungen} Bewerbung{td.bewerbungen > 1 ? 'en' : ''}</span>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Energie-Chart */}
       <div className="card" style={{ marginBottom: 16 }}>
         <span className="label">Energie — letzte 7 Tage</span>
         {avgEnergy && (
@@ -260,48 +397,55 @@ export default function Verlauf() {
         </div>
       </div>
 
-      {/* Interview-Verlauf */}
-      {interviews.length > 0 && (
-        <div className="card" style={{ marginBottom: 16 }}>
-          <span className="label">Interviews</span>
-          {interviews
-            .slice()
-            .sort((a, b) => new Date(b.date) - new Date(a.date))
-            .slice(0, 5)
-            .map(iv => (
-              <div key={iv.id} style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '10px 0', borderBottom: '1px solid var(--border)',
-              }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: '0.875rem', fontWeight: 600 }}>{iv.company}</div>
-                  {iv.role && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{iv.role}</div>}
-                </div>
-                <div style={{ textAlign: 'right', marginRight: 8 }}>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                    {new Date(iv.date).toLocaleDateString('de-DE')}
-                  </div>
-                  <div style={{
-                    fontSize: '0.65rem', fontWeight: 600,
-                    color: iv.status === 'done' ? 'var(--green)' : 'var(--amber)',
-                    textTransform: 'uppercase', letterSpacing: '0.05em',
-                  }}>
-                    {iv.status === 'done' ? 'Geführt' : 'Geplant'}
-                  </div>
-                </div>
-                <button
-                  onClick={() => setInterviews(prev => prev.filter(i => i.id !== iv.id))}
-                  style={{ color: 'var(--text-light)', fontSize: '1.1rem', padding: '0 4px', flexShrink: 0 }}
-                  title="Löschen"
-                >×</button>
+      {/* Interviews */}
+      <div className="card" style={{ marginBottom: 16 }}>
+        <span className="label">Interviews</span>
+        {interviews.length === 0 && (
+          <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: 8 }}>Noch keine Interviews eingetragen.</p>
+        )}
+        {interviews
+          .slice()
+          .sort((a, b) => new Date(b.date) - new Date(a.date))
+          .slice(0, 5)
+          .map(iv => (
+            <div key={iv.id} style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '10px 0', borderBottom: '1px solid var(--border)',
+            }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '0.875rem', fontWeight: 600 }}>{iv.company}</div>
+                {iv.role && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{iv.role}</div>}
               </div>
-            ))}
-        </div>
-      )}
+              <div style={{ textAlign: 'right', marginRight: 8 }}>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  {new Date(iv.date).toLocaleDateString('de-DE')}
+                </div>
+                <div style={{
+                  fontSize: '0.65rem', fontWeight: 600,
+                  color: iv.status === 'done' ? 'var(--green)' : 'var(--amber)',
+                  textTransform: 'uppercase', letterSpacing: '0.05em',
+                }}>
+                  {iv.status === 'done' ? 'Geführt' : 'Geplant'}
+                </div>
+              </div>
+              <button
+                onClick={() => setInterviews(prev => prev.filter(i => i.id !== iv.id))}
+                style={{ color: 'var(--text-light)', fontSize: '1.1rem', padding: '0 4px', flexShrink: 0 }}
+              >×</button>
+            </div>
+          ))}
+      </div>
 
       <ProfileCard />
       <PushSetup />
       <SyncCard />
+
+      {showAddInterview && (
+        <AddInterviewModal
+          onSave={iv => setInterviews(prev => [...prev, iv])}
+          onClose={() => setShowAddInterview(false)}
+        />
+      )}
     </div>
   )
 }
